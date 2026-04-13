@@ -400,11 +400,10 @@ new Chart(ctxScatter, {{
       y: {{
         title: {{
           display: true,
-          text: 'Días desde creación'
+          text: 'Días desde creación (los más antiguos arriba)'
         }},
         min: 0,
         max: maxAge + 5,
-        reverse: true,
         ticks: {{
           stepSize: 7
         }}
