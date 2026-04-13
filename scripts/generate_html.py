@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+haz #!/usr/bin/env python3
 """
 Generate HTML report from sprint analysis JSON data.
 """
@@ -227,6 +227,11 @@ footer {{
   <div class="kpi">
     <div class="kpi-label">Total de ítems</div>
     <div class="kpi-value">{k['total_items']}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Leftovers</div>
+    <div class="kpi-value">{k['leftovers']}</div>
+    <div class="kpi-unit">antes del sprint</div>
   </div>
   <div class="kpi">
     <div class="kpi-label">Completados</div>

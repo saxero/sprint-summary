@@ -62,10 +62,8 @@ def analyze(csv_path, sprint_start, sprint_end):
         if not created:
             continue
         
-        # Calculate age relative to sprint start
-        age_start = (sprint_start_dt - created).days
-        age_now = (now - created).days
-        age = max(age_start, 0)  # Use sprint-relative age
+        # Calculate absolute age (days since creation)
+        age = (now - created).days
         
         # Only include items in sprint window or created before
         if created <= sprint_end_dt:
@@ -102,6 +100,7 @@ def analyze(csv_path, sprint_start, sprint_end):
             'closed_items': closed_items,
             'open_items': open_items,
             'pct_done': pct_done,
+            'leftovers': leftovers,
         },
         'scatter_items': scatter_items,
         'status_dist': status_dist,

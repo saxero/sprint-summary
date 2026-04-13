@@ -55,6 +55,13 @@ def analyze(csv_path, sprint_start, sprint_end):
     open_items = total_items - closed_items
     pct_done = round(closed_items / max(total_items, 1) * 100)
     
+    # Count leftovers (items that were open before sprint start)
+    leftovers = 0
+    for idx, row in df.iterrows():
+        created = row['created_dt']
+        if created and created < sprint_start_dt and not row['is_closed']:
+            leftovers += 1
+    
     # Prepare scatter data
     scatter_items = []
     for idx, row in df.iterrows():
@@ -99,6 +106,7 @@ def analyze(csv_path, sprint_start, sprint_end):
             'closed_items': closed_items,
             'open_items': open_items,
             'pct_done': pct_done,
+            'leftovers': leftovers,
         },
         'scatter_items': scatter_items,
     }
@@ -284,18 +292,18 @@ footer {{
 
 <div class="kpis">
   <div class="kpi">
-    <div class="kpi-label">Total de ítems</div>
+    <div class="kpi-label">Total de tickets</div>
     <div class="kpi-value">{k['total_items']}</div>
   </div>
   <div class="kpi">
-    <div class="kpi-label">Completados</div>
-    <div class="kpi-value">{k['closed_items']}</div>
-    <div class="kpi-unit">de {k['total_items']}</div>
+    <div class="kpi-label">Leftovers</div>
+    <div class="kpi-value">{k['leftovers']}</div>
+    <div class="kpi-unit">antes del sprint</div>
   </div>
   <div class="kpi">
     <div class="kpi-label">Abiertos</div>
     <div class="kpi-value">{k['open_items']}</div>
-    <div class="kpi-unit">{{100 - k['pct_done']}}% restante</div>
+    <div class="kpi-unit">{100 - k['pct_done']}% restante</div>
   </div>
   <div class="kpi">
     <div class="kpi-label">Progreso</div>
