@@ -1,0 +1,532 @@
+#!/usr/bin/env python3
+"""
+Sprint Summary Report - Main orchestrator
+Combines analysis and HTML generation in one script.
+"""
+
+import argparse
+import json
+import sys
+import math
+from datetime import datetime
+from pathlib import Path
+import pandas as pd
+
+DATE_FORMAT = '%d/%b/%y %I:%M %p'
+
+def parse_date(s):
+    """Parse Jira date format."""
+    if pd.isna(s) or s == '':
+        return None
+    try:
+        return datetime.strptime(str(s).strip(), DATE_FORMAT)
+    except ValueError:
+        return None
+
+def analyze(csv_path, sprint_start, sprint_end):
+    """Analyze CSV and extract sprint metrics."""
+    df = pd.read_csv(csv_path)
+    
+    # Parse dates
+    df['created_dt'] = df['Created'].apply(parse_date)
+    df['resolved_dt'] = df['Resolved'].apply(parse_date)
+    df['status'] = df['Status'].fillna('Unknown')
+    df['issue_key'] = df['Issue key']
+    df['issue_type'] = df['Issue Type'].fillna('Unknown')
+    
+    now = datetime.now()
+    
+    # Ensure dates are datetime objects
+    if isinstance(sprint_start, str):
+        sprint_start = datetime.strptime(sprint_start, '%Y-%m-%d')
+    if isinstance(sprint_end, str):
+        sprint_end = datetime.strptime(sprint_end, '%Y-%m-%d')
+    
+    sprint_start_dt = datetime.combine(sprint_start.date(), datetime.min.time())
+    sprint_end_dt = datetime.combine(sprint_end.date(), datetime.min.time())
+    
+    # Define closed statuses
+    closed_statuses = ['Closed', 'Done', 'Rejected']
+    df['is_closed'] = df['status'].isin(closed_statuses)
+    
+    # Count tickets
+    total_items = len(df)
+    closed_items = df[df['is_closed']].shape[0]
+    open_items = total_items - closed_items
+    pct_done = round(closed_items / max(total_items, 1) * 100)
+    
+    # Prepare scatter data
+    scatter_items = []
+    for idx, row in df.iterrows():
+        created = row['created_dt']
+        if not created:
+            continue
+        
+        # Calculate age relative to sprint start
+        age = (now - created).days
+        
+        # Only include items created before or at sprint end
+        if created <= sprint_end_dt:
+            scatter_items.append({
+                'key': row['issue_key'],
+                'type': row['issue_type'],
+                'status': row['status'],
+                'age_days': age,
+                'is_closed': row['is_closed'],
+                'summary': row.get('Summary', 'Sin título'),
+                'assignee': row.get('Assignee', 'Sin asignar')
+            })
+    
+    # Sort by age (descending) for display
+    scatter_items.sort(key=lambda x: x['age_days'], reverse=True)
+    
+    # Get sprint name
+    sprint_name = 'Sprint'
+    if 'Sprint' in df.columns:
+        sprints = df['Sprint'].dropna().value_counts()
+        if len(sprints) > 0:
+            sprint_name = sprints.index[0]
+    
+    return {
+        'meta': {
+            'sprint_name': sprint_name,
+            'sprint_start': sprint_start_dt.strftime('%Y-%m-%d'),
+            'sprint_end': sprint_end_dt.strftime('%Y-%m-%d'),
+            'generated_at': now.strftime('%Y-%m-%d %H:%M'),
+        },
+        'kpis': {
+            'total_items': total_items,
+            'closed_items': closed_items,
+            'open_items': open_items,
+            'pct_done': pct_done,
+        },
+        'scatter_items': scatter_items,
+    }
+
+def generate_html(data):
+    """Generate HTML report from analysis data."""
+    m = data['meta']
+    k = data['kpis']
+    scatter = data['scatter_items']
+    
+    # Prepare scatter plot data
+    scatter_data_points = []
+    for i, item in enumerate(scatter):
+        # Spread items horizontally
+        x = (i % 5) - 2
+        y = item['age_days']
+        scatter_data_points.append({
+            'x': x,
+            'y': y,
+            'key': item['key'],
+            'status': item['status'],
+            'type': item['type'],
+            'summary': item['summary'],
+            'assignee': item['assignee']
+        })
+    
+    max_age = max((p['y'] for p in scatter_data_points), default=30)
+    
+    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprint Report — {m['sprint_name']}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif;
+  background: #ffffff;
+  color: #1d1d1f;
+  padding: 2.5rem 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}}
+.header {{
+  margin-bottom: 2.5rem;
+  border-bottom: 1px solid #f5f5f7;
+  padding-bottom: 1.5rem;
+}}
+h1 {{
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}}
+.meta {{
+  font-size: 14px;
+  color: #86868b;
+}}
+.kpis {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 2rem;
+}}
+.kpi {{
+  background: #f5f5f7;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+}}
+.kpi-label {{
+  font-size: 12px;
+  color: #86868b;
+  font-weight: 500;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}}
+.kpi-value {{
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}}
+.kpi-unit {{
+  font-size: 14px;
+  color: #86868b;
+  font-weight: 400;
+}}
+.progress-bar {{
+  width: 100%;
+  height: 12px;
+  background: #e8e8ed;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 12px;
+}}
+.progress-fill {{
+  height: 100%;
+  background: linear-gradient(90deg, #34c759 0%, #0071e3 100%);
+  transition: width 0.3s ease;
+}}
+.section {{
+  margin-bottom: 2.5rem;
+}}
+.section-title {{
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  letter-spacing: -0.01em;
+}}
+.card {{
+  background: #ffffff;
+  border: 1px solid #f5f5f7;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}}
+.chart-container {{
+  position: relative;
+  width: 100%;
+  height: 400px;
+  margin-bottom: 1rem;
+}}
+.legend {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #86868b;
+}}
+.legend-item {{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}}
+.legend-dot {{
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}}
+.risk-zones {{
+  display: flex;
+  gap: 20px;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f5f5f7;
+  font-size: 13px;
+}}
+.risk-item {{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}}
+.risk-line {{
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+}}
+footer {{
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f5f5f7;
+  font-size: 12px;
+  color: #86868b;
+  text-align: center;
+}}
+@media print {{
+  body {{ padding: 0; }}
+  .header, .section {{ page-break-inside: avoid; }}
+}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{m['sprint_name']}</h1>
+  <div class="meta">{m['sprint_start']} → {m['sprint_end']} · Generado {m['generated_at']}</div>
+</div>
+
+<div class="kpis">
+  <div class="kpi">
+    <div class="kpi-label">Total de ítems</div>
+    <div class="kpi-value">{k['total_items']}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Completados</div>
+    <div class="kpi-value">{k['closed_items']}</div>
+    <div class="kpi-unit">de {k['total_items']}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Abiertos</div>
+    <div class="kpi-value">{k['open_items']}</div>
+    <div class="kpi-unit">{{100 - k['pct_done']}}% restante</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Progreso</div>
+    <div class="kpi-value" style="font-size:48px">{k['pct_done']}%</div>
+    <div class="progress-bar">
+      <div class="progress-fill" style="width:{k['pct_done']}%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2 class="section-title">Tickets Completados vs Total</h2>
+  <div class="card">
+    <div class="chart-container">
+      <canvas id="chart-completion" width="800" height="400"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#34c759"></span>
+        <span>Completados ({k['closed_items']})</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#ff9500"></span>
+        <span>Abiertos ({k['open_items']})</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2 class="section-title">Antigüedad de Items (Scatter Plot)</h2>
+  <div class="card">
+    <p style="margin-bottom:1rem; color:#86868b; font-size:13px">
+      Items ordenados verticalmente por antigüedad (los más antiguos arriba).
+    </p>
+    <div class="chart-container">
+      <canvas id="chart-scatter" width="800" height="400"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#34c759"></span>
+        <span>Completado</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#0071e3"></span>
+        <span>En progreso</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#ff9500"></span>
+        <span>Abierto</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#ff3b30"></span>
+        <span>Rechazado</span>
+      </div>
+    </div>
+    <div class="risk-zones">
+      <div class="risk-item" style="color:#ff9500">
+        <span class="risk-line"></span>
+        <span>Riesgo moderado (14 días)</span>
+      </div>
+      <div class="risk-item" style="color:#ff3b30">
+        <span class="risk-line"></span>
+        <span>Riesgo alto (28 días)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Sprint Summary Report · Generado desde Jira CSV</p>
+</footer>
+
+<script>
+const DATA = {json.dumps(data)};
+
+// Completion donut chart
+const ctxCompletion = document.getElementById('chart-completion');
+new Chart(ctxCompletion, {{
+  type: 'doughnut',
+  data: {{
+    labels: ['Completados', 'Abiertos'],
+    datasets: [{{
+      data: [{k['closed_items']}, {k['open_items']}],
+      backgroundColor: ['#34c759', '#ff9500'],
+      borderWidth: 0,
+      hoverOffset: 4
+    }}]
+  }},
+  options: {{
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '60%',
+    plugins: {{
+      legend: {{
+        display: false
+      }},
+      tooltip: {{
+        callbacks: {{
+          label: function(context) {{
+            const label = context.label || '';
+            const value = context.parsed || 0;
+            const total = {k['total_items']};
+            const pct = Math.round(value / total * 100);
+            return label + ': ' + value + ' (' + pct + '%)';
+          }}
+        }}
+      }}
+    }}
+  }}
+}});
+
+// Scatter plot
+const scatterData = {json.dumps(scatter_data_points)};
+const maxAge = Math.max(...scatterData.map(d => d.y), 30);
+
+const datasets = {{}};
+scatterData.forEach(point => {{
+  const status = point.status;
+  const color = status === 'Closed' || status === 'Done' ? '#34c759' :
+                status === 'Open' ? '#ff9500' :
+                status === 'In Progress' ? '#0071e3' :
+                status === 'Rejected' ? '#ff3b30' : '#86868b';
+  
+  if (!datasets[status]) {{
+    datasets[status] = {{
+      label: status,
+      data: [],
+      backgroundColor: color + '80',
+      borderColor: color,
+      borderWidth: 1.5,
+      pointRadius: 6,
+      pointHoverRadius: 8
+    }};
+  }}
+  datasets[status].data.push({{x: point.x, y: point.y, key: point.key, type: point.type, summary: point.summary, assignee: point.assignee}});
+}});
+
+const ctxScatter = document.getElementById('chart-scatter');
+new Chart(ctxScatter, {{
+  type: 'scatter',
+  data: {{
+    datasets: Object.values(datasets)
+  }},
+  options: {{
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {{
+      legend: {{
+        display: false
+      }},
+      tooltip: {{
+        callbacks: {{
+          title: function(context) {{
+            return context[0].raw.key;
+          }},
+          label: function(context) {{
+            const point = context.raw;
+            return [
+              point.type,
+              point.summary,
+              'Asignado: ' + point.assignee,
+              'Antigüedad: ' + Math.round(point.y) + ' días'
+            ];
+          }}
+        }}
+      }}
+    }},
+    scales: {{
+      x: {{
+        display: false,
+        min: -3,
+        max: 3
+      }},
+      y: {{
+        title: {{
+          display: true,
+          text: 'Días desde creación (los más antiguos arriba)',
+          font: {{ size: 12 }},
+          color: '#86868b'
+        }},
+        min: 0,
+        max: {max_age} + 5,
+        reverse: true,
+        grid: {{ color: 'rgba(0,0,0,0.04)' }},
+        ticks: {{
+          stepSize: Math.max(1, Math.ceil(({max_age} + 5) / 5)),
+          color: '#86868b',
+          font: {{ size: 11 }}
+        }}
+      }}
+    }}
+  }}
+}});
+</script>
+
+</body>
+</html>"""
+    
+    return html
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Generate Sprint Summary Report from Jira CSV'
+    )
+    parser.add_argument('csv_path', help='Path to Jira CSV export')
+    parser.add_argument('--sprint-start', required=True, help='Sprint start date (YYYY-MM-DD)')
+    parser.add_argument('--sprint-end', required=True, help='Sprint end date (YYYY-MM-DD)')
+    parser.add_argument('--output', '-o', default='sprint-report.html', 
+                        help='Output HTML file')
+    
+    args = parser.parse_args()
+    
+    try:
+        print(f"Analyzing {args.csv_path}...", file=sys.stderr)
+        data = analyze(args.csv_path, args.sprint_start, args.sprint_end)
+        
+        print(f"Generating HTML report...", file=sys.stderr)
+        html = generate_html(data)
+        
+        with open(args.output, 'w', encoding='utf-8') as f:
+            f.write(html)
+        
+        print(f"✓ Report generated: {args.output}", file=sys.stderr)
+        print(args.output)  # Output filename for scripting
+        
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()

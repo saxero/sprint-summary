@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprint Report — Sprint - ERNI -144</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif;
+  background: #ffffff;
+  color: #1d1d1f;
+  padding: 2.5rem 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.header {
+  margin-bottom: 2.5rem;
+  border-bottom: 1px solid #f5f5f7;
+  padding-bottom: 1.5rem;
+}
+h1 {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+.meta {
+  font-size: 14px;
+  color: #86868b;
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 2rem;
+}
+.kpi {
+  background: #f5f5f7;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+}
+.kpi-label {
+  font-size: 12px;
+  color: #86868b;
+  font-weight: 500;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.kpi-value {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.kpi-unit {
+  font-size: 14px;
+  color: #86868b;
+  font-weight: 400;
+}
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  background: #e8e8ed;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #34c759 0%, #0071e3 100%);
+  transition: width 0.3s ease;
+}
+.section {
+  margin-bottom: 2.5rem;
+}
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  letter-spacing: -0.01em;
+}
+.card {
+  background: #ffffff;
+  border: 1px solid #f5f5f7;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  margin-bottom: 1rem;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #86868b;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.risk-zones {
+  display: flex;
+  gap: 20px;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f5f5f7;
+  font-size: 13px;
+}
+.risk-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.risk-line {
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+}
+footer {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f5f5f7;
+  font-size: 12px;
+  color: #86868b;
+  text-align: center;
+}
+@media print {
+  body { padding: 0; }
+  .header, .section { page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Sprint - ERNI -144</h1>
+  <div class="meta">2026-04-07 → 2026-04-17 · Generado 2026-04-13 20:18</div>
+</div>
+
+<div class="kpis">
+  <div class="kpi">
+    <div class="kpi-label">Total de ítems</div>
+    <div class="kpi-value">9</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Completados</div>
+    <div class="kpi-value">0</div>
+    <div class="kpi-unit">de 9</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Abiertos</div>
+    <div class="kpi-value">9</div>
+    <div class="kpi-unit">{100 - k['pct_done']}% restante</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Progreso</div>
+    <div class="kpi-value" style="font-size:48px">0%</div>
+    <div class="progress-bar">
+      <div class="progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2 class="section-title">Tickets Completados vs Total</h2>
+  <div class="card">
+    <div class="chart-container">
+      <canvas id="chart-completion" width="800" height="400"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#34c759"></span>
+        <span>Completados (0)</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#ff9500"></span>
+        <span>Abiertos (9)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2 class="section-title">Antigüedad de Items (Scatter Plot)</h2>
+  <div class="card">
+    <p style="margin-bottom:1rem; color:#86868b; font-size:13px">
+      Items ordenados verticalmente por antigüedad (los más antiguos arriba).
+    </p>
+    <div class="chart-container">
+      <canvas id="chart-scatter" width="800" height="400"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#34c759"></span>
+        <span>Completado</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#0071e3"></span>
+        <span>En progreso</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#ff9500"></span>
+        <span>Abierto</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#ff3b30"></span>
+        <span>Rechazado</span>
+      </div>
+    </div>
+    <div class="risk-zones">
+      <div class="risk-item" style="color:#ff9500">
+        <span class="risk-line"></span>
+        <span>Riesgo moderado (14 días)</span>
+      </div>
+      <div class="risk-item" style="color:#ff3b30">
+        <span class="risk-line"></span>
+        <span>Riesgo alto (28 días)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Sprint Summary Report · Generado desde Jira CSV</p>
+</footer>
+
+<script>
+const DATA = {"meta": {"sprint_name": "Sprint - ERNI -144", "sprint_start": "2026-04-07", "sprint_end": "2026-04-17", "generated_at": "2026-04-13 20:18"}, "kpis": {"total_items": 9, "closed_items": 0, "open_items": 9, "pct_done": 0}, "scatter_items": [{"key": "MM-37274", "type": "Change Request", "status": "Open", "age_days": 53, "is_closed": false, "summary": "TC-1161 - Actions on the list - Ready to Implement", "assignee": "Mart\u00ednez Siegfried Ignacio (ERNI)"}, {"key": "MM-37298", "type": "Change Request", "status": "Open", "age_days": 49, "is_closed": false, "summary": "TC-669 -  Order Summary - Automation", "assignee": "Irina Nicolae"}, {"key": "MM-37614", "type": "Change Request", "status": "Open", "age_days": 39, "is_closed": false, "summary": "TC-1157 - My Orders Tab - Automation", "assignee": "Garc\u00eda S\u00e1nchez Pedro (ERNI)"}, {"key": "MM-37591", "type": "Change Request", "status": "Open", "age_days": 39, "is_closed": false, "summary": "TC-309 - Impresi\u00f3n Resguardo Extracci\u00f3n - Final JAMA", "assignee": "Liso Garcia Neus (ERNI)"}, {"key": "MM-37585", "type": "Change Request", "status": "Open", "age_days": 39, "is_closed": false, "summary": "TC-619 - Historial - Final JAMA", "assignee": "Irina Nicolae"}, {"key": "MM-37692", "type": "Change Request", "status": "Open", "age_days": 25, "is_closed": false, "summary": "TC-1162 - Pat Search & Pat Mgmt - Automation", "assignee": "Juan David Ospina"}, {"key": "MM-37798", "type": "Change Request", "status": "Open", "age_days": 13, "is_closed": false, "summary": "[QA Autom] Shipments - Fix failing tests in build", "assignee": "Garc\u00eda S\u00e1nchez Pedro (ERNI)"}, {"key": "MM-37805", "type": "Change Request", "status": "Open", "age_days": 12, "is_closed": false, "summary": "TC-1161 - Actions on the list - Automation", "assignee": "Mart\u00ednez Siegfried Ignacio (ERNI)"}, {"key": "MM-37815", "type": "Change Request", "status": "Open", "age_days": 6, "is_closed": false, "summary": "TC-619 -  Historial - Automation FE", "assignee": "Juan David Ospina"}]};
+
+// Completion donut chart
+const ctxCompletion = document.getElementById('chart-completion');
+new Chart(ctxCompletion, {
+  type: 'doughnut',
+  data: {
+    labels: ['Completados', 'Abiertos'],
+    datasets: [{
+      data: [0, 9],
+      backgroundColor: ['#34c759', '#ff9500'],
+      borderWidth: 0,
+      hoverOffset: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '60%',
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const label = context.label || '';
+            const value = context.parsed || 0;
+            const total = 9;
+            const pct = Math.round(value / total * 100);
+            return label + ': ' + value + ' (' + pct + '%)';
+          }
+        }
+      }
+    }
+  }
+});
+
+// Scatter plot
+const scatterData = [{"x": -2, "y": 53, "key": "MM-37274", "status": "Open", "type": "Change Request", "summary": "TC-1161 - Actions on the list - Ready to Implement", "assignee": "Mart\u00ednez Siegfried Ignacio (ERNI)"}, {"x": -1, "y": 49, "key": "MM-37298", "status": "Open", "type": "Change Request", "summary": "TC-669 -  Order Summary - Automation", "assignee": "Irina Nicolae"}, {"x": 0, "y": 39, "key": "MM-37614", "status": "Open", "type": "Change Request", "summary": "TC-1157 - My Orders Tab - Automation", "assignee": "Garc\u00eda S\u00e1nchez Pedro (ERNI)"}, {"x": 1, "y": 39, "key": "MM-37591", "status": "Open", "type": "Change Request", "summary": "TC-309 - Impresi\u00f3n Resguardo Extracci\u00f3n - Final JAMA", "assignee": "Liso Garcia Neus (ERNI)"}, {"x": 2, "y": 39, "key": "MM-37585", "status": "Open", "type": "Change Request", "summary": "TC-619 - Historial - Final JAMA", "assignee": "Irina Nicolae"}, {"x": -2, "y": 25, "key": "MM-37692", "status": "Open", "type": "Change Request", "summary": "TC-1162 - Pat Search & Pat Mgmt - Automation", "assignee": "Juan David Ospina"}, {"x": -1, "y": 13, "key": "MM-37798", "status": "Open", "type": "Change Request", "summary": "[QA Autom] Shipments - Fix failing tests in build", "assignee": "Garc\u00eda S\u00e1nchez Pedro (ERNI)"}, {"x": 0, "y": 12, "key": "MM-37805", "status": "Open", "type": "Change Request", "summary": "TC-1161 - Actions on the list - Automation", "assignee": "Mart\u00ednez Siegfried Ignacio (ERNI)"}, {"x": 1, "y": 6, "key": "MM-37815", "status": "Open", "type": "Change Request", "summary": "TC-619 -  Historial - Automation FE", "assignee": "Juan David Ospina"}];
+const maxAge = Math.max(...scatterData.map(d => d.y), 30);
+
+const datasets = {};
+scatterData.forEach(point => {
+  const status = point.status;
+  const color = status === 'Closed' || status === 'Done' ? '#34c759' :
+                status === 'Open' ? '#ff9500' :
+                status === 'In Progress' ? '#0071e3' :
+                status === 'Rejected' ? '#ff3b30' : '#86868b';
+  
+  if (!datasets[status]) {
+    datasets[status] = {
+      label: status,
+      data: [],
+      backgroundColor: color + '80',
+      borderColor: color,
+      borderWidth: 1.5,
+      pointRadius: 6,
+      pointHoverRadius: 8
+    };
+  }
+  datasets[status].data.push({x: point.x, y: point.y, key: point.key, type: point.type, summary: point.summary, assignee: point.assignee});
+});
+
+const ctxScatter = document.getElementById('chart-scatter');
+new Chart(ctxScatter, {
+  type: 'scatter',
+  data: {
+    datasets: Object.values(datasets)
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          title: function(context) {
+            return context[0].raw.key;
+          },
+          label: function(context) {
+            const point = context.raw;
+            return [
+              point.type,
+              point.summary,
+              'Asignado: ' + point.assignee,
+              'Antigüedad: ' + Math.round(point.y) + ' días'
+            ];
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        display: false,
+        min: -3,
+        max: 3
+      },
+      y: {
+        title: {
+          display: true,
+          text: 'Días desde creación (los más antiguos arriba)',
+          font: { size: 12 },
+          color: '#86868b'
+        },
+        min: 0,
+        max: 53 + 5,
+        reverse: true,
+        grid: { color: 'rgba(0,0,0,0.04)' },
+        ticks: {
+          stepSize: Math.max(1, Math.ceil((53 + 5) / 5)),
+          color: '#86868b',
+          font: { size: 11 }
+        }
+      }
+    }
+  }
+});
+</script>
+
+</body>
+</html>
