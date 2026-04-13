@@ -1,4 +1,4 @@
-haz #!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Generate HTML report from sprint analysis JSON data.
 """

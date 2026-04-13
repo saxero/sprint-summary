@@ -93,7 +93,15 @@ def analyze(csv_path, sprint_start, sprint_end):
         sprints = df['Sprint'].dropna().value_counts()
         if len(sprints) > 0:
             sprint_name = sprints.index[0]
-    
+
+    # Status distribution for table (Done, In Progress, Not started)
+    status_counts = df['status'].value_counts().to_dict()
+    status_table = {
+        'done': status_counts.get('Done', 0) + status_counts.get('Closed', 0),
+        'in_progress': status_counts.get('In Progress', 0),
+        'not_started': status_counts.get('Open', 0) + status_counts.get('New', 0),
+    }
+
     return {
         'meta': {
             'sprint_name': sprint_name,
@@ -108,6 +116,7 @@ def analyze(csv_path, sprint_start, sprint_end):
             'pct_done': pct_done,
             'leftovers': leftovers,
         },
+        'status_table': status_table,
         'scatter_items': scatter_items,
     }
 
@@ -277,6 +286,26 @@ footer {{
   color: #86868b;
   text-align: center;
 }}
+.two-columns {{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  margin-bottom: 2.5rem;
+  align-items: stretch;
+}}
+.two-columns .section {{
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}}
+.two-columns .card {{
+  flex: 1;
+}}
+@media (max-width: 900px) {{
+  .two-columns {{
+    grid-template-columns: 1fr;
+  }}
+}}
 @media print {{
   body {{ padding: 0; }}
   .header, .section {{ page-break-inside: avoid; }}
@@ -314,21 +343,57 @@ footer {{
   </div>
 </div>
 
-<div class="section">
-  <h2 class="section-title">Tickets Completados vs Total</h2>
-  <div class="card">
-    <div class="chart-container">
-      <canvas id="chart-completion" width="800" height="400"></canvas>
+<div class="two-columns">
+  <div class="section">
+    <h2 class="section-title">Tickets Completados vs Total</h2>
+    <div class="card">
+      <div class="chart-container">
+        <canvas id="chart-completion" width="800" height="400"></canvas>
+      </div>
+      <div class="legend">
+        <div class="legend-item">
+          <span class="legend-dot" style="background:#34c759"></span>
+          <span>Completados ({k['closed_items']})</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background:#ff9500"></span>
+          <span>Abiertos ({k['open_items']})</span>
+        </div>
+      </div>
     </div>
-    <div class="legend">
-      <div class="legend-item">
-        <span class="legend-dot" style="background:#34c759"></span>
-        <span>Completados ({k['closed_items']})</span>
-      </div>
-      <div class="legend-item">
-        <span class="legend-dot" style="background:#ff9500"></span>
-        <span>Abiertos ({k['open_items']})</span>
-      </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Distribución por Estado</h2>
+    <div class="card">
+      <table style="width:100%; border-collapse: collapse; font-size: 14px;">
+        <thead>
+          <tr style="border-bottom: 1px solid #e8e8ed;">
+            <th style="text-align:left; padding: 12px 16px; color: #86868b; font-weight: 500;">Estado</th>
+            <th style="text-align:right; padding: 12px 16px; color: #86868b; font-weight: 500;">Tickets</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid #f5f5f7;">
+            <td style="padding: 12px 16px;"><span style="display:inline-block; width:10px; height:10px; background:#34c759; border-radius:50%; margin-right:8px;"></span>Done</td>
+            <td style="text-align:right; padding: 12px 16px; font-weight: 600;">{data['status_table']['done']}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f5f5f7;">
+            <td style="padding: 12px 16px;"><span style="display:inline-block; width:10px; height:10px; background:#0071e3; border-radius:50%; margin-right:8px;"></span>In Progress</td>
+            <td style="text-align:right; padding: 12px 16px; font-weight: 600;">{data['status_table']['in_progress']}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 16px;"><span style="display:inline-block; width:10px; height:10px; background:#ff9500; border-radius:50%; margin-right:8px;"></span>Not Started</td>
+            <td style="text-align:right; padding: 12px 16px; font-weight: 600;">{data['status_table']['not_started']}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="border-top: 2px solid #e8e8ed; font-weight: 600;">
+            <td style="padding: 12px 16px;">Total</td>
+            <td style="text-align:right; padding: 12px 16px;">{data['status_table']['done'] + data['status_table']['in_progress'] + data['status_table']['not_started']}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   </div>
 </div>
@@ -372,6 +437,7 @@ footer {{
     </div>
   </div>
 </div>
+
 
 <footer>
   <p>Sprint Summary Report · Generado desde Jira CSV</p>
