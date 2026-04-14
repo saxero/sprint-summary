@@ -29,6 +29,7 @@ def analyze(csv_path, sprint_start, sprint_end):
     
     # Parse dates
     df['created_dt'] = df['Created'].apply(parse_date)
+    df['opened_dt'] = df['Updated'].apply(parse_date)
     df['resolved_dt'] = df['Resolved'].apply(parse_date)
     df['status'] = df['Status'].fillna('Unknown')
     df['issue_key'] = df['Issue key']
@@ -61,9 +62,13 @@ def analyze(csv_path, sprint_start, sprint_end):
         created = row['created_dt']
         if not created:
             continue
+
+        opened = row['opened_dt']
+        if not opened:
+            continue
         
         # Calculate absolute age (days since creation)
-        age = (now - created).days
+        age = (now - opened).days
         
         # Only include items in sprint window or created before
         if created <= sprint_end_dt:

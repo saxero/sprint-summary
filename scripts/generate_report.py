@@ -13,6 +13,8 @@ from pathlib import Path
 import pandas as pd
 
 DATE_FORMAT = '%d/%b/%y %I:%M %p'
+MODERATE_RISK_DAYS = 5
+HIGH_RISK_DAYS = 8
 
 def parse_date(s):
     """Parse Jira date format."""
@@ -29,6 +31,7 @@ def analyze(csv_path, sprint_start, sprint_end):
     
     # Parse dates
     df['created_dt'] = df['Created'].apply(parse_date)
+    df['opened_dt'] = df['Updated'].apply(parse_date)
     df['resolved_dt'] = df['Resolved'].apply(parse_date)
     df['status_changed_dt'] = df['Status Category Changed'].apply(parse_date)
     df['status'] = df['Status'].fillna('Unknown')
@@ -68,21 +71,24 @@ def analyze(csv_path, sprint_start, sprint_end):
     for idx, row in df.iterrows():
         created = row['created_dt']
         status_changed = row['status_changed_dt']
+        open_date = row['opened_dt']
         if not created:
             continue
-        if row.get('is_closed') or row.get('status','').lower() in ('done','closed','resolved'):  
+        if row.get('is_closed') or row.get('status','').lower() in ('done','closed','resolved','new'):  
             continue
 
         # Use status change date as start date if item is Open and has status change date
         # Otherwise fall back to creation date
+        
         if row['status'] == 'Open' and status_changed:
-            start_date = status_changed
+            #start_date = status_changed
+            start_date = open_date
         else:
             start_date = created
 
         # Calculate age from the appropriate start date
         age = (now - start_date).days
-
+        
         # Only include items created before or at sprint end
         if created <= sprint_end_dt:
             scatter_items.append({
@@ -163,9 +169,9 @@ def analyze(csv_path, sprint_start, sprint_end):
     open_items_list = [item for item in scatter_items if not item['is_closed']]
     oldest_items = sorted(open_items_list, key=lambda x: x['age_days'], reverse=True)[:3]
 
-    # Count items at risk (>14 days moderate, >28 days high)
-    moderate_risk = sum(1 for item in open_items_list if 14 < item['age_days'] <= 28)
-    high_risk = sum(1 for item in open_items_list if item['age_days'] > 28)
+    # Count items at risk (> MODERATE_RISK_DAYS days moderate, > HIGH_RISK_DAYS days high)
+    moderate_risk = sum(1 for item in open_items_list if MODERATE_RISK_DAYS < item['age_days'] <= HIGH_RISK_DAYS)
+    high_risk = sum(1 for item in open_items_list if item['age_days'] > HIGH_RISK_DAYS)
 
     # Generate highlights
     highlights = []
@@ -216,13 +222,13 @@ def analyze(csv_path, sprint_start, sprint_end):
         highlights.append({
             'icon': '🔴',
             'title': f'{high_risk} tickets con alto riesgo por antigüedad',
-            'description': f'Hay {high_risk} tickets abiertos hace más de 28 días. El más antiguo es {oldest_items[0]["key"]} ({oldest_items[0]["age_days"]} días). Requiere atención inmediata para evitar carry-over.'
+            'description': f'Hay {high_risk} tickets abiertos hace más de {HIGH_RISK_DAYS} días. El más antiguo es {oldest_items[0]["key"]} ({oldest_items[0]["age_days"]} días). Requiere atención inmediata para evitar carry-over.'
         })
     elif moderate_risk > 0:
         highlights.append({
             'icon': '🟡',
             'title': f'{moderate_risk} tickets en riesgo moderado',
-            'description': f'Hay {moderate_risk} tickets entre 14-28 días de antigüedad. Considera priorizar {oldest_items[0]["key"]} ({oldest_items[0]["age_days"]} días) para prevenir bloqueos.'
+            'description': f'Hay {moderate_risk} tickets entre {MODERATE_RISK_DAYS}-{HIGH_RISK_DAYS} días de antigüedad. Considera priorizar {oldest_items[0]["key"]} ({oldest_items[0]["age_days"]} días) para prevenir bloqueos.'
         })
     else:
         highlights.append({
@@ -568,11 +574,11 @@ footer {{
     <div class="risk-zones">
       <div class="risk-item" style="color:#ff9500">
         <span class="risk-line"></span>
-        <span>Riesgo moderado (14 días)</span>
+        <span>Riesgo moderado ({MODERATE_RISK_DAYS} días)</span>
       </div>
       <div class="risk-item" style="color:#ff3b30">
         <span class="risk-line"></span>
-        <span>Riesgo alto (28 días)</span>
+        <span>Riesgo alto ({HIGH_RISK_DAYS} días)</span>
       </div>
     </div>
   </div>
@@ -706,8 +712,8 @@ scatterData.forEach(point => {{
 // Add risk zone horizontal lines
 const chartDatasets = Object.values(datasets);
 chartDatasets.push({{
-  label: 'Riesgo moderado (14d)',
-  data: [{{x: -3, y: 14}}, {{x: 3, y: 14}}],
+  label: 'Riesgo moderado ({MODERATE_RISK_DAYS}d)',
+  data: [{{x: -3, y: {MODERATE_RISK_DAYS}}}, {{x: 3, y: {MODERATE_RISK_DAYS}}}],
   type: 'line',
   borderColor: '#ff9500',
   borderWidth: 2,
@@ -717,8 +723,8 @@ chartDatasets.push({{
   tooltip: {{ enabled: false }}
 }});
 chartDatasets.push({{
-  label: 'Riesgo alto (28d)',
-  data: [{{x: -3, y: 28}}, {{x: 3, y: 28}}],
+  label: 'Riesgo alto ({HIGH_RISK_DAYS}d)',
+  data: [{{x: -3, y: {HIGH_RISK_DAYS}}}, {{x: 3, y: {HIGH_RISK_DAYS}}}],
   type: 'line',
   borderColor: '#ff3b30',
   borderWidth: 2,
@@ -771,7 +777,7 @@ new Chart(ctxScatter, {{
           font: {{ size: 12 }},
           color: '#86868b'
         }},
-        min: 0,
+        min: -1,
         max: {max_age} + 5,
         grid: {{ color: 'rgba(0,0,0,0.04)' }},
         ticks: {{
