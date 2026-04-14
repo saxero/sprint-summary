@@ -563,6 +563,10 @@ footer {{
 
 <footer>
   <p>Sprint Summary Report · Generado desde Jira CSV</p>
+  <p style="margin-top: 8px; font-size: 11px; color: #afafaf;">
+    🔒 Privacidad: Este reporte fue generado localmente. Los datos de JIRA no se utilizan para entrenar modelos LLM.
+    Se recomienda anonimizar datos antes de compartir.
+  </p>
 </footer>
 
 <script>
@@ -710,11 +714,25 @@ def main():
     parser.add_argument('csv_path', help='Path to Jira CSV export')
     parser.add_argument('--sprint-start', required=True, help='Sprint start date (YYYY-MM-DD)')
     parser.add_argument('--sprint-end', required=True, help='Sprint end date (YYYY-MM-DD)')
-    parser.add_argument('--output', '-o', default='sprint-report.html', 
+    parser.add_argument('--output', '-o', default='sprint-report.html',
                         help='Output HTML file')
-    
+
     args = parser.parse_args()
-    
+
+    # Privacy Notice
+    print("=" * 60, file=sys.stderr)
+    print("PRIVACY NOTICE / AVISO DE PRIVACIDAD", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+    print("This skill processes data LOCALLY.", file=sys.stderr)
+    print("JIRA data is NOT used to train LLM models.", file=sys.stderr)
+    print("No data is sent to external services.", file=sys.stderr)
+    print("-" * 60, file=sys.stderr)
+    print("RECOMMENDATION: Ensure your CSV is anonymized.", file=sys.stderr)
+    print("Do NOT include: names, trademarks, product names, or", file=sys.stderr)
+    print("confidential/sensitive information in the exported CSV.", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+    print(file=sys.stderr)
+
     try:
         print(f"Analyzing {args.csv_path}...", file=sys.stderr)
         data = analyze(args.csv_path, args.sprint_start, args.sprint_end)

@@ -44,6 +44,34 @@ python3 scripts/generate_report.py ./UserStories.csv \
 
 ---
 
+## 🔒 Privacidad y Protección de Datos
+
+> **⚠️ IMPORTANTE - Directiva de Privacidad**
+>
+> **Esta skill procesa datos localmente. Los datos de JIRA exportados NO se utilizan para entrenar modelos de lenguaje (LLM) ni se envían a servicios externos.**
+
+### Recomendaciones de Anonimización
+
+Antes de exportar tu CSV de Jira, asegúrate de:
+
+- ✅ **Anonimizar nombres** - No incluir nombres completos de personas en el campo Assignee (usar iniciales o IDs)
+- ✅ **Eliminar marcas comerciales** - Remover nombres de productos propietarios de los títulos de tickets
+- ✅ **Excluir información confidencial** - No exportar tickets con datos sensibles, contratos, o información de clientes
+- ✅ **Revisar descripciones** - Asegurar que los campos Summary no contengan datos sensibles
+- ✅ **Usar proyectos de prueba** - Para pruebas de esta skill, usar datos de proyectos ficticios o de demostración
+
+### Qué datos permanecen locales
+
+| Dato | Procesamiento | Almacenamiento |
+|------|---------------|----------------|
+| CSV exportado | Local | Temporal (solo durante generación) |
+| Reporte HTML | Local | Archivo de salida elegido por usuario |
+| Métricas calculadas | Local | No persistente |
+
+**Ningún dato se transmite a servicios externos, APIs de terceros, ni se utiliza para entrenamiento de modelos AI.**
+
+---
+
 ## 📋 Requisitos
 
 | Componente | Versión | Notas |
