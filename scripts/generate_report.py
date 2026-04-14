@@ -104,11 +104,16 @@ def analyze(csv_path, sprint_start, sprint_end):
             sprint_name = sprints.index[0]
 
     # Status distribution for table (Done, In Progress, Not started)
+    # Completados = Done, Abiertos = In Progress, resto = Not started
     status_counts = df['status'].value_counts().to_dict()
+    done_count = status_counts.get('Done', 0) + status_counts.get('Closed', 0)
+    in_progress_count = status_counts.get('In Progress', 0)
+    # Not started = total - done - in_progress (cubre todos los demás estados como Open, New, Aceptado, etc.)
+    not_started_count = total_items - done_count - in_progress_count
     status_table = {
-        'done': status_counts.get('Done', 0) + status_counts.get('Closed', 0),
-        'in_progress': status_counts.get('In Progress', 0),
-        'not_started': status_counts.get('Open', 0) + status_counts.get('New', 0),
+        'done': done_count,
+        'in_progress': in_progress_count,
+        'not_started': not_started_count,
     }
 
     return {
@@ -362,11 +367,15 @@ footer {{
       <div class="legend">
         <div class="legend-item">
           <span class="legend-dot" style="background:#34c759"></span>
-          <span>Completados ({k['closed_items']})</span>
+          <span>Completados ({data['status_table']['done']})</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background:#0071e3"></span>
+          <span>Abiertos ({data['status_table']['in_progress']})</span>
         </div>
         <div class="legend-item">
           <span class="legend-dot" style="background:#ff9500"></span>
-          <span>Abiertos ({k['open_items']})</span>
+          <span>Not Started ({data['status_table']['not_started']})</span>
         </div>
       </div>
     </div>
@@ -419,19 +428,15 @@ footer {{
     <div class="legend">
       <div class="legend-item">
         <span class="legend-dot" style="background:#34c759"></span>
-        <span>Completado</span>
+        <span>Completados</span>
       </div>
       <div class="legend-item">
         <span class="legend-dot" style="background:#0071e3"></span>
-        <span>En progreso</span>
+        <span>Abiertos</span>
       </div>
       <div class="legend-item">
         <span class="legend-dot" style="background:#ff9500"></span>
-        <span>Abierto</span>
-      </div>
-      <div class="legend-item">
-        <span class="legend-dot" style="background:#ff3b30"></span>
-        <span>Rechazado</span>
+        <span>Not Started</span>
       </div>
     </div>
     <div class="risk-zones">
@@ -460,10 +465,10 @@ const ctxCompletion = document.getElementById('chart-completion');
 new Chart(ctxCompletion, {{
   type: 'doughnut',
   data: {{
-    labels: ['Completados', 'Abiertos'],
+    labels: ['Completados', 'Abiertos', 'Not Started'],
     datasets: [{{
-      data: [{k['closed_items']}, {k['open_items']}],
-      backgroundColor: ['#34c759', '#ff9500'],
+      data: [{data['status_table']['done']}, {data['status_table']['in_progress']}, {data['status_table']['not_started']}],
+      backgroundColor: ['#34c759', '#0071e3', '#ff9500'],
       borderWidth: 0,
       hoverOffset: 4
     }}]
@@ -497,15 +502,23 @@ const maxAge = Math.max(...scatterData.map(d => d.y), 30);
 
 const datasets = {{}};
 scatterData.forEach(point => {{
+  // Map individual status to grouped categories
   const status = point.status;
-  const color = status === 'Closed' || status === 'Done' ? '#34c759' :
-                status === 'Open' ? '#ff9500' :
-                status === 'In Progress' ? '#0071e3' :
-                status === 'Rejected' ? '#ff3b30' : '#86868b';
-  
-  if (!datasets[status]) {{
-    datasets[status] = {{
-      label: status,
+  let category, color;
+  if (status === 'Done' || status === 'Closed' || status === 'Rejected') {{
+    category = 'Completados';
+    color = '#34c759';
+  }} else if (status === 'In Progress') {{
+    category = 'Abiertos';
+    color = '#0071e3';
+  }} else {{
+    category = 'Not Started';
+    color = '#ff9500';
+  }}
+
+  if (!datasets[category]) {{
+    datasets[category] = {{
+      label: category,
       data: [],
       backgroundColor: color + '80',
       borderColor: color,
@@ -514,7 +527,7 @@ scatterData.forEach(point => {{
       pointHoverRadius: 8
     }};
   }}
-  datasets[status].data.push({{x: point.x, y: point.y, key: point.key, type: point.type, summary: point.summary, assignee: point.assignee}});
+  datasets[category].data.push({{x: point.x, y: point.y, key: point.key, type: point.type, summary: point.summary, assignee: point.assignee}});
 }});
 
 const ctxScatter = document.getElementById('chart-scatter');
