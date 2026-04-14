@@ -70,6 +70,8 @@ def analyze(csv_path, sprint_start, sprint_end):
         status_changed = row['status_changed_dt']
         if not created:
             continue
+        if row.get('is_closed') or row.get('status','').lower() in ('done','closed','resolved'):  
+            continue
 
         # Use status change date as start date if item is Open and has status change date
         # Otherwise fall back to creation date
@@ -554,10 +556,6 @@ footer {{
       <canvas id="chart-scatter" width="800" height="400"></canvas>
     </div>
     <div class="legend">
-      <div class="legend-item">
-        <span class="legend-dot" style="background:#34c759"></span>
-        <span>Completados</span>
-      </div>
       <div class="legend-item">
         <span class="legend-dot" style="background:#0071e3"></span>
         <span>Abiertos</span>
