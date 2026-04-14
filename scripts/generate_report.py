@@ -104,17 +104,97 @@ def analyze(csv_path, sprint_start, sprint_end):
             sprint_name = sprints.index[0]
 
     # Status distribution for table (Done, In Progress, Not started)
-    # Completados = Done, Abiertos = In Progress, resto = Not started
+    # Completados = Done + Closed + Rejected
+    # Abiertos = Open + In Progress
+    # Not started = resto (New, Aceptado, etc.)
     status_counts = df['status'].value_counts().to_dict()
-    done_count = status_counts.get('Done', 0) + status_counts.get('Closed', 0)
-    in_progress_count = status_counts.get('In Progress', 0)
-    # Not started = total - done - in_progress (cubre todos los demás estados como Open, New, Aceptado, etc.)
+    done_count = status_counts.get('Done', 0) + status_counts.get('Closed', 0) + status_counts.get('Rejected', 0)
+    in_progress_count = status_counts.get('Open', 0) + status_counts.get('In Progress', 0)
     not_started_count = total_items - done_count - in_progress_count
     status_table = {
         'done': done_count,
         'in_progress': in_progress_count,
         'not_started': not_started_count,
     }
+
+    # Calculate sprint progress and days remaining
+    sprint_duration = (sprint_end_dt - sprint_start_dt).days
+    days_elapsed = (now - sprint_start_dt).days
+    days_remaining = max(0, (sprint_end_dt - now).days)
+    time_progress = min(100, max(0, (days_elapsed / sprint_duration * 100))) if sprint_duration > 0 else 0
+    velocity_needed = (total_items - closed_items) / max(1, days_remaining) if days_remaining > 0 else 0
+
+    # Find oldest open items (at risk)
+    open_items_list = [item for item in scatter_items if not item['is_closed']]
+    oldest_items = sorted(open_items_list, key=lambda x: x['age_days'], reverse=True)[:3]
+
+    # Count items at risk (>14 days moderate, >28 days high)
+    moderate_risk = sum(1 for item in open_items_list if 14 < item['age_days'] <= 28)
+    high_risk = sum(1 for item in open_items_list if item['age_days'] > 28)
+
+    # Generate highlights
+    highlights = []
+
+    # Highlight 1: Sprint pace vs completion
+    if pct_done < time_progress - 15:
+        highlights.append({
+            'icon': '⚠️',
+            'title': 'Ritmo de sprint por debajo del objetivo',
+            'description': f'El sprint lleva {days_elapsed} días ({time_progress:.0f}% del tiempo) pero solo {pct_done}% está completado. Se necesita completar {velocity_needed:.1f} tickets/día para terminar a tiempo.'
+        })
+    elif days_remaining <= 2 and pct_done < 80:
+        highlights.append({
+            'icon': '⏰',
+            'title': 'Sprint próximo a cerrar con bajo completion',
+            'description': f'Quedan solo {days_remaining} días y el sprint está al {pct_done}%. Considera reducir alcance o extender el sprint.'
+        })
+    else:
+        highlights.append({
+            'icon': '📊',
+            'title': 'Ritmo de sprint estable',
+            'description': f'Sprint al {pct_done}% completado con {days_remaining} días restantes. Velocidad actual suficiente para completar el objetivo.'
+        })
+
+    # Highlight 2: Work in progress bottleneck
+    wip_ratio = in_progress_count / max(1, total_items - done_count)
+    if in_progress_count > done_count * 2:
+        highlights.append({
+            'icon': '🚧',
+            'title': 'Acumulación de trabajo en progreso',
+            'description': f'Hay {in_progress_count} tickets en progreso vs {done_count} completados. El equipo tiene demasiado WIP, lo que retrasa la entrega. Considera limitar WIP y enfocar en terminar lo iniciado.'
+        })
+    elif not_started_count > (done_count + in_progress_count):
+        highlights.append({
+            'icon': '🆕',
+            'title': 'Muchos tickets sin iniciar',
+            'description': f'{not_started_count} tickets aún no iniciados ({not_started_count/total_items*100:.0f}% del total). Prioriza iniciar el trabajo para evitar bloqueos al final del sprint.'
+        })
+    else:
+        highlights.append({
+            'icon': '✅',
+            'title': 'Distribución de trabajo balanceada',
+            'description': f'La distribución entre completados ({done_count}), en progreso ({in_progress_count}) y pendientes ({not_started_count}) es saludable. Mantener el foco en completar lo iniciado.'
+        })
+
+    # Highlight 3: Risk items (age)
+    if high_risk > 0:
+        highlights.append({
+            'icon': '🔴',
+            'title': f'{high_risk} tickets con alto riesgo por antigüedad',
+            'description': f'Hay {high_risk} tickets abiertos hace más de 28 días. El más antiguo es {oldest_items[0]["key"]} ({oldest_items[0]["age_days"]} días). Requiere atención inmediata para evitar carry-over.'
+        })
+    elif moderate_risk > 0:
+        highlights.append({
+            'icon': '🟡',
+            'title': f'{moderate_risk} tickets en riesgo moderado',
+            'description': f'Hay {moderate_risk} tickets entre 14-28 días de antigüedad. Considera priorizar {oldest_items[0]["key"]} ({oldest_items[0]["age_days"]} días) para prevenir bloqueos.'
+        })
+    else:
+        highlights.append({
+            'icon': '🟢',
+            'title': 'Tickets dentro de tiempos aceptables',
+            'description': f'La antigüedad de tickets abiertos está controlada. El más antiguo tiene {oldest_items[0]["age_days"] if oldest_items else 0} días. Buen ritmo de refinamiento y priorización.'
+        })
 
     return {
         'meta': {
@@ -132,6 +212,15 @@ def analyze(csv_path, sprint_start, sprint_end):
         },
         'status_table': status_table,
         'scatter_items': scatter_items,
+        'highlights': highlights,
+        'sprint_metrics': {
+            'days_elapsed': days_elapsed,
+            'days_remaining': days_remaining,
+            'time_progress': round(time_progress, 1),
+            'velocity_needed': round(velocity_needed, 1),
+            'moderate_risk': moderate_risk,
+            'high_risk': high_risk,
+        }
     }
 
 def generate_html(data):
@@ -393,11 +482,11 @@ footer {{
         </thead>
         <tbody>
           <tr style="border-bottom: 1px solid #f5f5f7;">
-            <td style="padding: 12px 16px;"><span style="display:inline-block; width:10px; height:10px; background:#34c759; border-radius:50%; margin-right:8px;"></span>Done</td>
+            <td style="padding: 12px 16px;"><span style="display:inline-block; width:10px; height:10px; background:#34c759; border-radius:50%; margin-right:8px;"></span>Completados</td>
             <td style="text-align:right; padding: 12px 16px; font-weight: 600;">{data['status_table']['done']}</td>
           </tr>
           <tr style="border-bottom: 1px solid #f5f5f7;">
-            <td style="padding: 12px 16px;"><span style="display:inline-block; width:10px; height:10px; background:#0071e3; border-radius:50%; margin-right:8px;"></span>In Progress</td>
+            <td style="padding: 12px 16px;"><span style="display:inline-block; width:10px; height:10px; background:#0071e3; border-radius:50%; margin-right:8px;"></span>Abiertos</td>
             <td style="text-align:right; padding: 12px 16px; font-weight: 600;">{data['status_table']['in_progress']}</td>
           </tr>
           <tr>
@@ -452,6 +541,20 @@ footer {{
   </div>
 </div>
 
+<div class="section">
+  <h2 class="section-title">📌 Highlights del Sprint</h2>
+  <div class="card" style="padding: 0; overflow: hidden;">
+    {''.join(f"""
+    <div class="highlight-item" style="padding: 20px 24px; border-bottom: 1px solid #f5f5f7; display: flex; gap: 16px; align-items: flex-start;">
+      <div class="highlight-icon" style="font-size: 28px; flex-shrink: 0;">{h['icon']}</div>
+      <div class="highlight-content" style="flex: 1;">
+        <div class="highlight-title" style="font-weight: 600; font-size: 16px; margin-bottom: 4px; color: #1d1d1f;">{h['title']}</div>
+        <div class="highlight-desc" style="font-size: 14px; color: #86868b; line-height: 1.5;">{h['description']}</div>
+      </div>
+    </div>
+    """ for h in data['highlights'])}
+  </div>
+</div>
 
 <footer>
   <p>Sprint Summary Report · Generado desde Jira CSV</p>
@@ -503,12 +606,15 @@ const maxAge = Math.max(...scatterData.map(d => d.y), 30);
 const datasets = {{}};
 scatterData.forEach(point => {{
   // Map individual status to grouped categories
+  // Completados = Done + Closed + Rejected
+  // Abiertos = Open + In Progress
+  // Not started = resto
   const status = point.status;
   let category, color;
   if (status === 'Done' || status === 'Closed' || status === 'Rejected') {{
     category = 'Completados';
     color = '#34c759';
-  }} else if (status === 'In Progress') {{
+  }} else if (status === 'Open' || status === 'In Progress') {{
     category = 'Abiertos';
     color = '#0071e3';
   }} else {{
