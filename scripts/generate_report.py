@@ -444,6 +444,11 @@ footer {{
       <div class="progress-fill" style="width:{k['pct_done']}%"></div>
     </div>
   </div>
+  <div class="kpi">
+    <div class="kpi-label">Velocity Requerida</div>
+    <div class="kpi-value" style="font-size:36px">{data['sprint_metrics']['velocity_needed']}</div>
+    <div class="kpi-unit">tickets/día para completar</div>
+  </div>
 </div>
 
 <div class="two-columns">
