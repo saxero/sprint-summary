@@ -645,11 +645,36 @@ scatterData.forEach(point => {{
   datasets[category].data.push({{x: point.x, y: point.y, key: point.key, type: point.type, summary: point.summary, assignee: point.assignee}});
 }});
 
+// Add risk zone horizontal lines
+const chartDatasets = Object.values(datasets);
+chartDatasets.push({{
+  label: 'Riesgo moderado (14d)',
+  data: [{{x: -3, y: 14}}, {{x: 3, y: 14}}],
+  type: 'line',
+  borderColor: '#ff9500',
+  borderWidth: 2,
+  borderDash: [5, 5],
+  pointRadius: 0,
+  fill: false,
+  tooltip: {{ enabled: false }}
+}});
+chartDatasets.push({{
+  label: 'Riesgo alto (28d)',
+  data: [{{x: -3, y: 28}}, {{x: 3, y: 28}}],
+  type: 'line',
+  borderColor: '#ff3b30',
+  borderWidth: 2,
+  borderDash: [5, 5],
+  pointRadius: 0,
+  fill: false,
+  tooltip: {{ enabled: false }}
+}});
+
 const ctxScatter = document.getElementById('chart-scatter');
 new Chart(ctxScatter, {{
   type: 'scatter',
   data: {{
-    datasets: Object.values(datasets)
+    datasets: chartDatasets
   }},
   options: {{
     responsive: true,
