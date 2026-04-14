@@ -117,6 +117,39 @@ def analyze(csv_path, sprint_start, sprint_end):
         'not_started': not_started_count,
     }
 
+    # Calculate throughput (tickets completed per time slice)
+    # Divide sprint into 3 slices: ~40%, ~30%, ~30%
+    sprint_duration_days = (sprint_end_dt - sprint_start_dt).days
+    if sprint_duration_days > 0:
+        slice1_days = max(1, round(sprint_duration_days * 0.4))
+        slice2_days = max(1, round(sprint_duration_days * 0.3))
+        slice3_days = max(1, sprint_duration_days - slice1_days - slice2_days)
+
+        slice1_end = sprint_start_dt + pd.Timedelta(days=slice1_days)
+        slice2_end = slice1_end + pd.Timedelta(days=slice2_days)
+
+        # Count tickets resolved in each slice
+        throughput = {'slice1': 0, 'slice2': 0, 'slice3': 0}
+
+        for idx, row in df.iterrows():
+            if not row['is_closed'] or pd.isna(row['resolved_dt']):
+                continue
+            resolved = row['resolved_dt']
+            if resolved <= sprint_end_dt and resolved >= sprint_start_dt:
+                if resolved < slice1_end:
+                    throughput['slice1'] += 1
+                elif resolved < slice2_end:
+                    throughput['slice2'] += 1
+                else:
+                    throughput['slice3'] += 1
+
+        throughput['slice1_label'] = f"Días 1-{slice1_days}"
+        throughput['slice2_label'] = f"Días {slice1_days+1}-{slice1_days+slice2_days}"
+        throughput['slice3_label'] = f"Días {slice1_days+slice2_days+1}-{sprint_duration_days}"
+    else:
+        throughput = {'slice1': 0, 'slice2': 0, 'slice3': 0,
+                      'slice1_label': 'Slice 1', 'slice2_label': 'Slice 2', 'slice3_label': 'Slice 3'}
+
     # Calculate sprint progress and days remaining
     sprint_duration = (sprint_end_dt - sprint_start_dt).days
     days_elapsed = (now - sprint_start_dt).days
@@ -220,7 +253,8 @@ def analyze(csv_path, sprint_start, sprint_end):
             'velocity_needed': round(velocity_needed, 1),
             'moderate_risk': moderate_risk,
             'high_risk': high_risk,
-        }
+        },
+        'throughput': throughput,
     }
 
 def generate_html(data):
@@ -547,6 +581,32 @@ footer {{
 </div>
 
 <div class="section">
+  <h2 class="section-title">📈 Throughput por Período</h2>
+  <div class="card">
+    <p style="margin-bottom:1rem; color:#86868b; font-size:13px">
+      Tickets completados durante cada período del sprint (dividido en 3 cortes temporales).
+    </p>
+    <div class="chart-container" style="height: 250px;">
+      <canvas id="chart-throughput" width="800" height="250"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#34c759"></span>
+        <span>{data['throughput']['slice1_label']}: <strong>{data['throughput']['slice1']}</strong> tickets</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#0071e3"></span>
+        <span>{data['throughput']['slice2_label']}: <strong>{data['throughput']['slice2']}</strong> tickets</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#ff9500"></span>
+        <span>{data['throughput']['slice3_label']}: <strong>{data['throughput']['slice3']}</strong> tickets</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
   <h2 class="section-title">📌 Highlights del Sprint</h2>
   <div class="card" style="padding: 0; overflow: hidden;">
     {''.join(f"""
@@ -721,6 +781,61 @@ new Chart(ctxScatter, {{
           color: '#86868b',
           font: {{ size: 11 }}
         }}
+      }}
+    }}
+  }}
+}});
+
+// Throughput bar chart
+const ctxThroughput = document.getElementById('chart-throughput');
+new Chart(ctxThroughput, {{
+  type: 'bar',
+  data: {{
+    labels: ['{data['throughput']['slice1_label']}', '{data['throughput']['slice2_label']}', '{data['throughput']['slice3_label']}'],
+    datasets: [{{
+      label: 'Tickets completados',
+      data: [{data['throughput']['slice1']}, {data['throughput']['slice2']}, {data['throughput']['slice3']}],
+      backgroundColor: ['#34c759', '#0071e3', '#ff9500'],
+      borderRadius: 8,
+      barThickness: 60
+    }}]
+  }},
+  options: {{
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {{
+      legend: {{
+        display: false
+      }},
+      tooltip: {{
+        callbacks: {{
+          label: function(context) {{
+            return 'Completados: ' + context.parsed.y + ' tickets';
+          }}
+        }}
+      }}
+    }},
+    scales: {{
+      x: {{
+        grid: {{ display: false }},
+        ticks: {{
+          color: '#86868b',
+          font: {{ size: 12 }}
+        }}
+      }},
+      y: {{
+        beginAtZero: true,
+        title: {{
+          display: true,
+          text: 'Tickets completados',
+          color: '#86868b',
+          font: {{ size: 12 }}
+        }},
+        ticks: {{
+          stepSize: 1,
+          color: '#86868b'
+        }},
+        grid: {{ color: 'rgba(0,0,0,0.04)' }}
       }}
     }}
   }}
