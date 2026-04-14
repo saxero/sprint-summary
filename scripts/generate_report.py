@@ -30,6 +30,7 @@ def analyze(csv_path, sprint_start, sprint_end):
     # Parse dates
     df['created_dt'] = df['Created'].apply(parse_date)
     df['resolved_dt'] = df['Resolved'].apply(parse_date)
+    df['status_changed_dt'] = df['Status Category Changed'].apply(parse_date)
     df['status'] = df['Status'].fillna('Unknown')
     df['issue_key'] = df['Issue key']
     df['issue_type'] = df['Issue Type'].fillna('Unknown')
@@ -66,12 +67,20 @@ def analyze(csv_path, sprint_start, sprint_end):
     scatter_items = []
     for idx, row in df.iterrows():
         created = row['created_dt']
+        status_changed = row['status_changed_dt']
         if not created:
             continue
-        
-        # Calculate age relative to sprint start
-        age = (now - created).days
-        
+
+        # Use status change date as start date if item is Open and has status change date
+        # Otherwise fall back to creation date
+        if row['status'] == 'Open' and status_changed:
+            start_date = status_changed
+        else:
+            start_date = created
+
+        # Calculate age from the appropriate start date
+        age = (now - start_date).days
+
         # Only include items created before or at sprint end
         if created <= sprint_end_dt:
             scatter_items.append({
@@ -402,7 +411,7 @@ footer {{
   <h2 class="section-title">Antigüedad de Items (Scatter Plot)</h2>
   <div class="card">
     <p style="margin-bottom:1rem; color:#86868b; font-size:13px">
-      Items ordenados verticalmente por antigüedad (los más antiguos arriba).
+      Items ordenados verticalmente por antigüedad desde que pasaron a Abierto (los más antiguos arriba).
     </p>
     <div class="chart-container">
       <canvas id="chart-scatter" width="800" height="400"></canvas>
@@ -532,7 +541,7 @@ new Chart(ctxScatter, {{
               point.type,
               point.summary,
               'Asignado: ' + point.assignee,
-              'Antigüedad: ' + Math.round(point.y) + ' días'
+              'Antigüedad: ' + Math.round(point.y) + ' días (desde Abierto)'
             ];
           }}
         }}
@@ -547,13 +556,12 @@ new Chart(ctxScatter, {{
       y: {{
         title: {{
           display: true,
-          text: 'Días desde creación (los más antiguos arriba)',
+          text: 'Días desde Abierto (los más antiguos arriba)',
           font: {{ size: 12 }},
           color: '#86868b'
         }},
         min: 0,
         max: {max_age} + 5,
-        reverse: true,
         grid: {{ color: 'rgba(0,0,0,0.04)' }},
         ticks: {{
           stepSize: Math.max(1, Math.ceil(({max_age} + 5) / 5)),
