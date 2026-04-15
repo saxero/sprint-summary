@@ -105,7 +105,6 @@ def analyze(csv_path, sprint_start, sprint_end):
             'closed_items': closed_items,
             'open_items': open_items,
             'pct_done': pct_done,
-            'leftovers': leftovers,
         },
         'scatter_items': scatter_items,
         'status_dist': status_dist,
