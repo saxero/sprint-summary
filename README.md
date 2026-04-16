@@ -161,7 +161,7 @@ El archivo `sprint-report.html` se creará en la misma carpeta. Ábrelo con tu n
 
 ### Para Desarrolladores
 
-#### Parámetros disponibles
+#### Parámetros disponibles (entrypoint: scripts/generate_report.py)
 
 | Parámetro | Requerido | Formato | Default | Descripción |
 |-----------|-----------|---------|---------|-------------|
@@ -170,32 +170,50 @@ El archivo `sprint-report.html` se creará en la misma carpeta. Ábrelo con tu n
 | `--sprint-end` | ✅ | YYYY-MM-DD | - | Fecha de fin del sprint |
 | `--output` | ❌ | Filename | `sprint-report.html` | Nombre del archivo de salida |
 
-#### Ejemplos avanzados
+#### Módulos desarrollador (alternativa por pasos)
+
+- scripts/analyze.py — lee el CSV, calcula KPIs y genera un archivo JSON de análisis.
+  Uso rápido (genera `<output_stem>.json`):
 
 ```bash
-# Ejemplo básico
-python3 scripts/generate_report.py ./UserStories.csv \
-  --sprint-start 2026-04-07 \
-  --sprint-end 2026-04-17
-
-# Salida personalizada
-python3 scripts/generate_report.py ./data/tickets.csv \
-  --sprint-start 2026-03-31 \
-  --sprint-end 2026-04-13 \
-  --output reports/sprint-7-summary.html
-
-# Abrir automáticamente tras generar (Windows)
-python3 scripts/generate_report.py UserStories.csv \
-  --sprint-start 2026-04-07 \
-  --sprint-end 2026-04-17 && \
-  start sprint-report.html
-
-# Abrir automáticamente tras generar (Mac)
-python3 scripts/generate_report.py UserStories.csv \
-  --sprint-start 2026-04-07 \
-  --sprint-end 2026-04-17 && \
-  open sprint-report.html
+python3 scripts/analyze.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17 --output sprint-report.html
+# esto escribirá sprint-report.json en el directorio actual
 ```
+
+- scripts/__generate_html.py — toma el JSON producido por analyze.py y genera el HTML final:
+
+```bash
+python3 scripts/__generate_html.py --data sprint-report.json --output my-report.html
+```
+
+- scripts/generate_report.py — orquesta ambos pasos (recomendado como entrypoint):
+
+```bash
+python3 scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17 --output my-report.html
+```
+
+#### Comandos rápidos para desarrollo y pruebas
+
+- Instalar dependencias: `pip install -r requirements.txt` (pandas)
+- Comprobación sintáctica de un archivo: `python -m py_compile scripts/generate_report.py`
+- Ejecutar el análisis solo (produce JSON):
+  `python3 scripts/analyze.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17 --output sprint-report.html`
+- Generar HTML desde JSON (para depuración):
+  `python3 scripts/__generate_html.py --data sprint-report.json --output debug-report.html`
+
+#### Nota sobre umbrales y consistencia
+
+- `scripts/generate_report.py` define constantes MODERATE_RISK_DAYS=5 y HIGH_RISK_DAYS=8 y las usa para marcar riesgo en el reporte.
+- `scripts/__generate_html.py` y `scripts/analyze.py` usan convenciones de color/edad que asumen 14d/28d como umbrales.
+- Recomendación: use `scripts/generate_report.py` como entrypoint para obtener un comportamiento coherente; si modifica umbrales, actualice las constantes en `scripts/generate_report.py`.
+
+#### Cómo ejecutar una única prueba local
+
+1. Preparar un CSV reducido (ej: `test_data/sample.csv`).
+2. Ejecutar el análisis para revisar la salida JSON:
+   `python3 scripts/analyze.py test_data/sample.csv --sprint-start 2026-01-01 --sprint-end 2026-01-14 --output tmp.html`
+3. Revisar `tmp.json` y generar el HTML si todo está bien:
+   `python3 scripts/__generate_html.py --data tmp.json --output tmp-report.html`
 
 ---
 
@@ -265,8 +283,8 @@ python3 scripts/generate_report.py UserStories.csv \
 1. **Puntos más arriba** = Tickets más antiguos
 2. **Puntos de color** = Agrupados por categoría (verde=completado, azul=abierto, naranja=no iniciado)
 3. **Líneas de riesgo:**
-   - Ámbar (14 días): Moderate risk
-   - Roja (28 días): High risk
+   - Ámbar: MODERATE_RISK_DAYS (5): Moderate risk
+   - Roja:  y HIGH_RISK_DAYS (8): High risk
 4. **Hover** sobre puntos para ver detalles del ticket
 
 **Interpretación:**
