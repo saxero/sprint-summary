@@ -1,0 +1,6 @@
+{
+  "csv_path": "UserStories.csv",
+  "sprint_start": "2026-04-01",
+  "sprint_end": "2026-04-14",
+  "output": "sprint-report.html"
+}

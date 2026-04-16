@@ -247,6 +247,7 @@ def analyze(csv_path, sprint_start, sprint_end):
         'kpis': {
             'total_items': total_items,
             'closed_items': closed_items,
+            'closed_items': closed_items,
             'open_items': open_items,
             'pct_done': pct_done,
             'leftovers': leftovers,
@@ -467,17 +468,8 @@ footer {{
 <div class="kpis">
   <div class="kpi">
     <div class="kpi-label">Total de tickets</div>
-    <div class="kpi-value">{k['total_items']}</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Leftovers</div>
-    <div class="kpi-value">{k['leftovers']}</div>
-    <div class="kpi-unit">antes del sprint</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Abiertos</div>
-    <div class="kpi-value">{k['open_items']}</div>
-    <div class="kpi-unit">{100 - k['pct_done']}% restante</div>
+    <div class="kpi-value">{k['closed_items']}/{k['total_items']}</div>
+    <div class="kpi-unit">cerrados / totales</div>
   </div>
   <div class="kpi">
     <div class="kpi-label">Progreso</div>
@@ -485,6 +477,17 @@ footer {{
     <div class="progress-bar">
       <div class="progress-fill" style="width:{k['pct_done']}%"></div>
     </div>
+  </div>
+  
+  <div class="kpi">
+    <div class="kpi-label">Abiertos</div>
+    <div class="kpi-value">{k['open_items']}</div>
+    <div class="kpi-unit">{100 - k['pct_done']}% restante</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Leftovers</div>
+    <div class="kpi-value">{k['leftovers']}</div>
+    <div class="kpi-unit">antes del sprint</div>
   </div>
   <div class="kpi">
     <div class="kpi-label">Velocity Requerida</div>
@@ -855,13 +858,46 @@ def main():
     parser = argparse.ArgumentParser(
         description='Generate Sprint Summary Report from Jira CSV'
     )
-    parser.add_argument('csv_path', help='Path to Jira CSV export')
-    parser.add_argument('--sprint-start', required=True, help='Sprint start date (YYYY-MM-DD)')
-    parser.add_argument('--sprint-end', required=True, help='Sprint end date (YYYY-MM-DD)')
+    parser.add_argument('csv_path', nargs='?', help='Path to Jira CSV export')
+    parser.add_argument('--sprint-start', help='Sprint start date (YYYY-MM-DD)')
+    parser.add_argument('--sprint-end', help='Sprint end date (YYYY-MM-DD)')
     parser.add_argument('--output', '-o', default='sprint-report.html',
                         help='Output HTML file')
+    parser.add_argument('--config', '-c', help='Path to JSON config file (optional)')
 
     args = parser.parse_args()
+
+    # Try to load missing values from a config JSON (default: scripts/generate_report_input.json next to this script)
+    config = {}
+    config_path = None
+    if args.config:
+        config_path = Path(args.config)
+    else:
+        config_path = Path(__file__).parent / 'generate_report_input.json'
+
+    if (not args.csv_path or not args.sprint_start or not args.sprint_end) and config_path.exists():
+        try:
+            with open(config_path, 'r', encoding='utf-8') as cf:
+                config = json.load(cf)
+        except Exception as e:
+            print(f"Warning: failed to read config {config_path}: {e}", file=sys.stderr)
+            config = {}
+
+    csv_path = args.csv_path or config.get('csv_path')
+    sprint_start = args.sprint_start or config.get('sprint_start')
+    sprint_end = args.sprint_end or config.get('sprint_end')
+    output = args.output or config.get('output', 'sprint-report.html')
+
+    # Resolve csv_path relative to config file if needed
+    if config and csv_path and not Path(csv_path).is_absolute() and config_path and config_path.exists():
+        candidate = (config_path.parent / csv_path).resolve()
+        if candidate.exists():
+            csv_path = str(candidate)
+
+    if not csv_path or not sprint_start or not sprint_end:
+        parser.print_help()
+        print("\nError: csv_path (positional), --sprint-start and --sprint-end are required. Provide them as arguments or in the config JSON.", file=sys.stderr)
+        sys.exit(2)
 
     # Privacy Notice
     print("=" * 60, file=sys.stderr)
@@ -878,17 +914,17 @@ def main():
     print(file=sys.stderr)
 
     try:
-        print(f"Analyzing {args.csv_path}...", file=sys.stderr)
-        data = analyze(args.csv_path, args.sprint_start, args.sprint_end)
+        print(f"Analyzing {csv_path}...", file=sys.stderr)
+        data = analyze(csv_path, sprint_start, sprint_end)
         
         print(f"Generating HTML report...", file=sys.stderr)
         html = generate_html(data)
         
-        with open(args.output, 'w', encoding='utf-8') as f:
+        with open(output, 'w', encoding='utf-8') as f:
             f.write(html)
         
-        print(f"✓ Report generated: {args.output}", file=sys.stderr)
-        print(args.output)  # Output filename for scripting
+        print(f"✓ Report generated: {output}", file=sys.stderr)
+        print(output)  # Output filename for scripting
         
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
