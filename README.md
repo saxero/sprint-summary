@@ -224,6 +224,8 @@ python3 scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --s
 
 ## ✨ Características
 
+Se ha añadido un "Mapa de carga por Asignado" que visualiza la carga de trabajo por persona. Si el CSV proporciona Story Points (SP), la intensidad se calculará sobre SP totales por asignado; en caso contrario, se usará el conteo de tickets por asignado. La visualización muestra una barra de intensidad normalizada y una columna con SP (o — si no disponibles) para facilitar la priorización.
+
 ### Dashboard de Completado
 
 | Métrica | Descripción |

@@ -166,6 +166,39 @@ def analyze(csv_path, sprint_start, sprint_end):
         'not_started': not_started_count,
     }
 
+    # Assignee load: compute counts and story points per assignee for heatmap
+    assignee_series = df['Assignee'] if 'Assignee' in df.columns else pd.Series(['Sin asignar'] * len(df))
+    assignee_series = assignee_series.fillna('Sin asignar')
+    assignee_mask = df['created_dt'].notna() & (df['created_dt'] <= sprint_end_dt)
+    assignee_counts = assignee_series[assignee_mask].value_counts().to_dict()
+
+    assignee_sp = {}
+    if has_story_points:
+        try:
+            sp_group = df.loc[assignee_mask].groupby(assignee_series[assignee_mask]).agg({'story_points': 'sum'})
+            assignee_sp = sp_group['story_points'].to_dict()
+        except Exception:
+            assignee_sp = {}
+
+    assignee_stats = []
+    if assignee_counts:
+        for name, count in sorted(assignee_counts.items(), key=lambda x: x[1], reverse=True):
+            sp = assignee_sp.get(name, None)
+            try:
+                sp_val = float(sp) if sp is not None and not pd.isna(sp) else 0.0
+            except Exception:
+                sp_val = 0.0
+            # Use SPs for metric if available, otherwise use count
+            metric_value = sp_val if has_story_points and sp_val is not None and sp_val > 0 else float(count)
+            assignee_stats.append({
+                'assignee': name,
+                'count': int(count),
+                'story_points': sp_val if sp_val != 0.0 else None,
+                'metric_value': metric_value
+            })
+    else:
+        assignee_stats = []
+
     # Calculate throughput (tickets completed per time slice)
     # Divide sprint into 3 slices: ~40%, ~30%, ~30%
     sprint_duration_days = (sprint_end_dt - sprint_start_dt).days
@@ -321,6 +354,8 @@ def analyze(csv_path, sprint_start, sprint_end):
             'story_points_ratio': story_points_ratio,
         },
         'status_table': status_table,
+        'assignee_stats': assignee_stats,
+        'assignee_metric': 'story_points' if has_story_points else 'count',
         'scatter_items': scatter_items,
         'highlights': highlights,
         'sprint_metrics': {
@@ -374,6 +409,56 @@ def generate_html(data):
       </div>
     </div>
     """.format(icon=h['icon'], title=h['title'], description=h['description'])
+
+    # Build assignee heatmap HTML (simple intensity table) from data produced in analyze()
+    assignee_html = ''
+    assignee_stats = data.get('assignee_stats', [])
+    assignee_metric = data.get('assignee_metric', 'count')
+    if assignee_stats:
+        # compute max for normalization using the chosen metric (metric_value)
+        max_metric = max(float(s.get('metric_value', 0)) for s in assignee_stats) if assignee_stats else 0.0
+        if max_metric == 0:
+            max_metric = 1.0
+        assignee_rows = ''
+        for s in assignee_stats:
+            mval = float(s.get('metric_value', 0))
+            intensity = 0.15 + 0.85 * (mval / max_metric)
+            color = f'rgba(0,113,227,{intensity:.2f})'
+            # width bar percentage based on metric
+            pct = int(round(100 * (mval / max_metric))) if max_metric > 0 else 0
+            sp_label = str(int(s['story_points'])) if s.get('story_points') is not None else '—'
+            assignee_rows += f"""
+            <tr style=\"border-bottom:1px solid #f5f5f7;\">
+              <td style=\"padding:12px 16px;\">{s['assignee']}</td>
+              <td style=\"padding:12px 16px; text-align:right; font-weight:600;\">{s['count']}</td>
+              <td style=\"padding:12px 16px;\"><div style=\"height:18px; background:{color}; border-radius:8px; width:{pct}%;\"></div></td>
+              <td style=\"padding:12px 16px; text-align:right;\">{sp_label}</td>
+            </tr>
+            """
+        metric_label = 'SP' if assignee_metric == 'story_points' else 'Tickets'
+        description_text = 'Intensidad basada en Story Points (más oscuro = mayor carga).' if assignee_metric == 'story_points' else 'Intensidad basada en número de tickets asignados (más oscuro = mayor carga).'
+        assignee_html = f"""
+        <div class=\"section\">
+          <div class=\"card\">
+            <p style=\"margin-bottom:1rem; color:#86868b; font-size:13px\">{description_text}</p>
+            <table style=\"width:100%; border-collapse: collapse; font-size: 14px;\">
+              <thead>
+                <tr style=\"border-bottom:1px solid #e8e8ed;\">
+                  <th style=\"text-align:left; padding:12px 16px; color:#86868b; font-weight:500;\">Asignado</th>
+                  <th style=\"text-align:right; padding:12px 16px; color:#86868b; font-weight:500;\">Tickets</th>
+                  <th style=\"text-align:left; padding:12px 16px; color:#86868b; font-weight:500;\">Carga ({metric_label})</th>
+                  <th style=\"text-align:right; padding:12px 16px; color:#86868b; font-weight:500;\">SP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assignee_rows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        """
+    else:
+        assignee_html = ''
 
     html = f"""<!DOCTYPE html>
 <html lang="es">
@@ -562,14 +647,6 @@ footer {{
     <div class="kpi-unit">cerrados / totales</div>
   </div>
   <div class="kpi">
-    <div class="kpi-label">Progreso</div>
-    <div class="kpi-value" style="font-size:48px">{k['pct_done']}%</div>
-    <div class="progress-bar">
-      <div class="progress-fill" style="width:{k['pct_done']}%"></div>
-    </div>
-  </div>
-  
-  <div class="kpi">
     <div class="kpi-label">Abiertos</div>
     <div class="kpi-value">{k['open_items']}</div>
     <div class="kpi-unit">{100 - k['pct_done']}% restante</div>
@@ -578,6 +655,13 @@ footer {{
     <div class="kpi-label">Leftovers</div>
     <div class="kpi-value">{k['leftovers']}</div>
     <div class="kpi-unit">antes del sprint</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Progreso</div>
+    <div class="kpi-value" style="font-size:48px">{k['pct_done']}%</div>
+    <div class="progress-bar">
+      <div class="progress-fill" style="width:{k['pct_done']}%"></div>
+    </div>
   </div>
   <div class="kpi">
     <div class="kpi-label">Velocity Requerida</div>
@@ -723,6 +807,11 @@ footer {{
       </div>
     </div>
   </div>
+</div>
+
+<div class="section">
+  <h2 class="section-title">Mapa de carga</h2>
+  {assignee_html}
 </div>
 
 <div class="section">
