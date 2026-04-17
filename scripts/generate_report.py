@@ -25,6 +25,12 @@ def parse_date(s):
     except ValueError:
         return None
 
+def format_story_points(value):
+    if value is None or pd.isna(value):
+        return 'NA'
+    value = float(value)
+    return str(int(value)) if value.is_integer() else f"{value:.1f}"
+
 def analyze(csv_path, sprint_start, sprint_end):
     """Analyze CSV and extract sprint metrics."""
     df = pd.read_csv(csv_path)
@@ -37,7 +43,26 @@ def analyze(csv_path, sprint_start, sprint_end):
     df['status'] = df['Status'].fillna('Unknown')
     df['issue_key'] = df['Issue key']
     df['issue_type'] = df['Issue Type'].fillna('Unknown')
-    
+
+    sp_candidates = [
+        'Story Points',
+        'Story point estimate',
+        'User Story Points',
+        'Custom field (Story point estimate)',
+        'Custom field (User Story Points)',
+        'Story Points Estimate'
+    ]
+    sp_column = None
+    for candidate in sp_candidates:
+        if candidate in df.columns:
+            values = pd.to_numeric(df[candidate], errors='coerce')
+            if values.notna().any():
+                sp_column = candidate
+                df['story_points'] = values
+                break
+    if sp_column is None:
+        df['story_points'] = pd.NA
+
     now = datetime.now()
     
     # Ensure dates are datetime objects
@@ -58,6 +83,22 @@ def analyze(csv_path, sprint_start, sprint_end):
     closed_items = df[df['is_closed']].shape[0]
     open_items = total_items - closed_items
     pct_done = round(closed_items / max(total_items, 1) * 100)
+
+    sprint_item_mask = df['created_dt'].notna() & (df['created_dt'] <= sprint_end_dt)
+    has_story_points = df.loc[sprint_item_mask, 'story_points'].notna().any()
+    if has_story_points:
+        total_story_points = df.loc[sprint_item_mask, 'story_points'].sum(skipna=True)
+        completed_story_points = df.loc[
+            sprint_item_mask & df['is_closed'] & (
+                (df['resolved_dt'].notna() & (df['resolved_dt'] <= sprint_end_dt)) | df['resolved_dt'].isna()
+            ),
+            'story_points'
+        ].sum(skipna=True)
+        story_points_ratio = f"{format_story_points(completed_story_points)}/{format_story_points(total_story_points)}"
+    else:
+        total_story_points = None
+        completed_story_points = None
+        story_points_ratio = 'NA'
     
     # Count leftovers (items that were open before sprint start)
     leftovers = 0
@@ -272,10 +313,12 @@ def analyze(csv_path, sprint_start, sprint_end):
         'kpis': {
             'total_items': total_items,
             'closed_items': closed_items,
-            'closed_items': closed_items,
             'open_items': open_items,
             'pct_done': pct_done,
             'leftovers': leftovers,
+            'story_points_total': total_story_points,
+            'story_points_completed': completed_story_points,
+            'story_points_ratio': story_points_ratio,
         },
         'status_table': status_table,
         'scatter_items': scatter_items,
@@ -511,6 +554,11 @@ footer {{
   <div class="kpi">
     <div class="kpi-label">Total de tickets</div>
     <div class="kpi-value">{k['closed_items']}/{k['total_items']}</div>
+    <div class="kpi-unit">cerrados / totales</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Story Points entregados</div>
+    <div class="kpi-value">{k['story_points_ratio']}</div>
     <div class="kpi-unit">cerrados / totales</div>
   </div>
   <div class="kpi">

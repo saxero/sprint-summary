@@ -204,23 +204,12 @@ Uso mixto (override de valores desde línea de comandos):
 python scripts/generate_report.py --config ./scripts/generate_report_input.json --sprint-start 2026-04-07 --sprint-end 2026-04-17
 ```
 
-#### Módulos desarrollador (alternativa por pasos)
+#### Uso avanzado y pruebas
 
-- scripts/analyze.py — lee el CSV, calcula KPIs y genera un archivo JSON de análisis.
-  Uso rápido (genera `<output_stem>.json`):
+- `scripts/generate_report.py` es el único entrypoint de la skill.
+- El script lee el CSV, calcula los KPIs y genera directamente el HTML final.
 
-```bash
-python3 scripts/analyze.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17 --output sprint-report.html
-# esto escribirá sprint-report.json en el directorio actual
-```
-
-- scripts/__generate_html.py — toma el JSON producido por analyze.py y genera el HTML final:
-
-```bash
-python3 scripts/__generate_html.py --data sprint-report.json --output my-report.html
-```
-
-- scripts/generate_report.py — orquesta ambos pasos (recomendado como entrypoint):
+Ejemplo de ejecución:
 
 ```bash
 python3 scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17 --output my-report.html
@@ -230,24 +219,6 @@ python3 scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --s
 
 - Instalar dependencias: `pip install -r requirements.txt` (pandas)
 - Comprobación sintáctica de un archivo: `python -m py_compile scripts/generate_report.py`
-- Ejecutar el análisis solo (produce JSON):
-  `python3 scripts/analyze.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17 --output sprint-report.html`
-- Generar HTML desde JSON (para depuración):
-  `python3 scripts/__generate_html.py --data sprint-report.json --output debug-report.html`
-
-#### Nota sobre umbrales y consistencia
-
-- `scripts/generate_report.py` define constantes MODERATE_RISK_DAYS=5 y HIGH_RISK_DAYS=8 y las usa para marcar riesgo en el reporte.
-- `scripts/__generate_html.py` y `scripts/analyze.py` usan convenciones de color/edad que asumen 14d/28d como umbrales.
-- Recomendación: use `scripts/generate_report.py` como entrypoint para obtener un comportamiento coherente; si modifica umbrales, actualice las constantes en `scripts/generate_report.py`.
-
-#### Cómo ejecutar una única prueba local
-
-1. Preparar un CSV reducido (ej: `test_data/sample.csv`).
-2. Ejecutar el análisis para revisar la salida JSON:
-   `python3 scripts/analyze.py test_data/sample.csv --sprint-start 2026-01-01 --sprint-end 2026-01-14 --output tmp.html`
-3. Revisar `tmp.json` y generar el HTML si todo está bien:
-   `python3 scripts/__generate_html.py --data tmp.json --output tmp-report.html`
 
 ---
 
