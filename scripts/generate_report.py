@@ -8,7 +8,7 @@ import argparse
 import json
 import sys
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import pandas as pd
 
@@ -158,6 +158,31 @@ def analyze(csv_path, sprint_start, sprint_end):
         throughput = {'slice1': 0, 'slice2': 0, 'slice3': 0,
                       'slice1_label': 'Slice 1', 'slice2_label': 'Slice 2', 'slice3_label': 'Slice 3'}
 
+    # Calculate burndown series for sprint items
+    sprint_item_rows = df[df['created_dt'].notna() & (df['created_dt'] <= sprint_end_dt)]
+    sprint_item_count = len(sprint_item_rows)
+    burndown_labels = []
+    burndown_actual = []
+    burndown_ideal = []
+    sprint_total_days = max(0, (sprint_end_dt.date() - sprint_start_dt.date()).days)
+
+    for day_index in range(sprint_total_days + 1):
+        current_day = sprint_start_dt.date() + timedelta(days=day_index)
+        burndown_labels.append(current_day.strftime('%Y-%m-%d'))
+
+        remaining_count = sprint_item_rows.apply(
+            lambda row: row['created_dt'].date() <= current_day and
+                        (pd.isna(row['resolved_dt']) or row['resolved_dt'].date() > current_day),
+            axis=1
+        ).sum()
+        burndown_actual.append(int(remaining_count))
+
+        if sprint_total_days > 0:
+            ideal_count = round(sprint_item_count * max(0, (sprint_total_days - day_index) / sprint_total_days))
+        else:
+            ideal_count = 0 if day_index > 0 else sprint_item_count
+        burndown_ideal.append(int(ideal_count))
+
     # Calculate sprint progress and days remaining
     sprint_duration = (sprint_end_dt - sprint_start_dt).days
     days_elapsed = (now - sprint_start_dt).days
@@ -264,6 +289,11 @@ def analyze(csv_path, sprint_start, sprint_end):
             'high_risk': high_risk,
         },
         'throughput': throughput,
+        'burndown': {
+            'labels': burndown_labels,
+            'actual': burndown_actual,
+            'ideal': burndown_ideal,
+        },
     }
 
 def generate_html(data):
@@ -289,7 +319,19 @@ def generate_html(data):
         })
     
     max_age = max((p['y'] for p in scatter_data_points), default=30)
-    
+
+    highlights_html = ''
+    for h in data['highlights']:
+        highlights_html += """
+    <div class=\"highlight-item\" style=\"padding: 20px 24px; border-bottom: 1px solid #f5f5f7; display: flex; gap: 16px; align-items: flex-start;\">
+      <div class=\"highlight-icon\" style=\"font-size: 28px; flex-shrink: 0;\">{icon}</div>
+      <div class=\"highlight-content\" style=\"flex: 1;\">
+        <div class=\"highlight-title\" style=\"font-weight: 600; font-size: 16px; margin-bottom: 4px; color: #1d1d1f;\">{title}</div>
+        <div class=\"highlight-desc\" style=\"font-size: 14px; color: #86868b; line-height: 1.5;\">{description}</div>
+      </div>
+    </div>
+    """.format(icon=h['icon'], title=h['title'], description=h['description'])
+
     html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -556,6 +598,28 @@ footer {{
 </div>
 
 <div class="section">
+  <h2 class="section-title">📉 Burndown del Sprint</h2>
+  <div class="card">
+    <p style="margin-bottom:1rem; color:#86868b; font-size:13px">
+      Evolución de los items abiertos durante el sprint. La línea ideal muestra la quema constante desde el inicio al fin del sprint.
+    </p>
+    <div class="chart-container" style="height: 320px;">
+      <canvas id="chart-burndown" width="800" height="320"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#34c759"></span>
+        <span>Burndown real</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:#0071e3"></span>
+        <span>Burndown ideal</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
   <h2 class="section-title">Antigüedad de Items (Scatter Plot)</h2>
   <div class="card">
     <p style="margin-bottom:1rem; color:#86868b; font-size:13px">
@@ -616,18 +680,7 @@ footer {{
 <div class="section">
   <h2 class="section-title">📌 Highlights del Sprint</h2>
   <div class="card" style="padding: 0; overflow: hidden;">
-    {''.join(f"""
-    <div class="highlight-item" style="padding: 20px 24px; border-bottom: 1px solid #f5f5f7; display: flex; gap: 16px; align-items: flex-start;">
-      <div class="highlight-icon" style="font-size: 28px; flex-shrink: 0;">{h['icon']}</div>
-      <div class="highlight-content" style="flex: 1;">
-        <div class="highlight-title" style="font-weight: 600; font-size: 16px; margin-bottom: 4px; color: #1d1d1f;">{h['title']}</div>
-        <div class="highlight-desc" style="font-size: 14px; color: #86868b; line-height: 1.5;">{h['description']}</div>
-      </div>
-    </div>
-    """ for h in data['highlights'])}
-  </div>
-</div>
-
+      {highlights_html}
 <footer>
   <p>Sprint Summary Report · Generado desde Jira CSV</p>
   <p style="margin-top: 8px; font-size: 11px; color: #afafaf;">
@@ -670,6 +723,83 @@ new Chart(ctxCompletion, {{
             return label + ': ' + value + ' (' + pct + '%)';
           }}
         }}
+      }}
+    }}
+  }}
+}});
+
+// Burndown chart
+const burndownData = {json.dumps(data['burndown'])};
+const ctxBurndown = document.getElementById('chart-burndown');
+new Chart(ctxBurndown, {{
+  type: 'line',
+  data: {{
+    labels: burndownData.labels,
+    datasets: [
+      {{
+        label: 'Real',
+        data: burndownData.actual,
+        borderColor: '#34c759',
+        backgroundColor: 'rgba(52,199,89,0.18)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 4,
+        pointBackgroundColor: '#34c759',
+        borderWidth: 2
+      }},
+      {{
+        label: 'Ideal',
+        data: burndownData.ideal,
+        borderColor: '#0071e3',
+        backgroundColor: 'rgba(0,113,227,0.12)',
+        fill: false,
+        tension: 0.2,
+        pointRadius: 0,
+        borderDash: [6, 4],
+        borderWidth: 2
+      }}
+    ]
+  }},
+  options: {{
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {{
+      legend: {{
+        position: 'top',
+        labels: {{
+          color: '#1d1d1f'
+        }}
+      }},
+      tooltip: {{
+        callbacks: {{
+          label: function(context) {{
+            return context.dataset.label + ': ' + context.parsed.y + ' items';
+          }}
+        }}
+      }}
+    }},
+    scales: {{
+      x: {{
+        grid: {{ color: 'rgba(0,0,0,0.04)' }},
+        ticks: {{
+          color: '#86868b',
+          maxRotation: 45,
+          minRotation: 45
+        }}
+      }},
+      y: {{
+        beginAtZero: true,
+        title: {{
+          display: true,
+          text: 'Items abiertos',
+          color: '#86868b',
+          font: {{ size: 12 }}
+        }},
+        ticks: {{
+          stepSize: 1,
+          color: '#86868b'
+        }},
+        grid: {{ color: 'rgba(0,0,0,0.04)' }}
       }}
     }}
   }}
