@@ -72,7 +72,7 @@ def analyze(csv_path, sprint_start, sprint_end):
         sprint_end = datetime.strptime(sprint_end, '%Y-%m-%d')
     
     sprint_start_dt = datetime.combine(sprint_start.date(), datetime.min.time())
-    sprint_end_dt = datetime.combine(sprint_end.date(), datetime.min.time())
+    sprint_end_dt = datetime.combine(sprint_end.date(), datetime.max.time())
     
     # Define closed statuses
     closed_statuses = ['Closed', 'Done', 'Rejected']
@@ -132,12 +132,15 @@ def analyze(csv_path, sprint_start, sprint_end):
         
         # Only include items created before or at sprint end
         if created <= sprint_end_dt:
+            # A ticket is "carried over" if it was created before the sprint started
+            carried_over = created < sprint_start_dt
             scatter_items.append({
                 'key': row['issue_key'],
                 'type': row['issue_type'],
                 'status': row['status'],
                 'age_days': age,
                 'is_closed': row['is_closed'],
+                'carried_over': carried_over,
                 'summary': row.get('Summary', 'Sin título'),
                 'assignee': row.get('Assignee', 'Sin asignar')
             })
@@ -393,7 +396,8 @@ def generate_html(data):
             'status': item['status'],
             'type': item['type'],
             'summary': item['summary'],
-            'assignee': item['assignee']
+            'assignee': item['assignee'],
+            'carried_over': item.get('carried_over', False)
         })
     
     max_age = max((p['y'] for p in scatter_data_points), default=30)
@@ -948,21 +952,21 @@ const maxAge = Math.max(...scatterData.map(d => d.y), 30);
 
 const datasets = {{}};
 scatterData.forEach(point => {{
-  // Map individual status to grouped categories
-  // Completados = Done + Closed + Rejected
-  // Abiertos = Open + In Progress
-  // Not started = resto
-  const status = point.status;
+  // Tickets arrastrados de sprint anterior tienen prioridad visual
+  // Luego se distingue entre Abiertos y Not Started
   let category, color;
-  if (status === 'Done' || status === 'Closed' || status === 'Rejected') {{
-    category = 'Completados';
-    color = '#34c759';
-  }} else if (status === 'Open' || status === 'In Progress') {{
-    category = 'Abiertos';
-    color = '#0071e3';
+  if (point.carried_over) {{
+    category = 'Arrastrado de sprint anterior';
+    color = '#F58427';
   }} else {{
-    category = 'Not Started';
-    color = '#ff9500';
+    const status = point.status;
+    if (status === 'Open' || status === 'In Progress') {{
+      category = 'Abierto en este sprint';
+      color = '#0071e3';
+    }} else {{
+      category = 'Not Started';
+      color = '#ff9500';
+    }}
   }}
 
   if (!datasets[category]) {{
@@ -1015,7 +1019,17 @@ new Chart(ctxScatter, {{
     maintainAspectRatio: false,
     plugins: {{
       legend: {{
-        display: false
+        display: true,
+        position: 'bottom',
+        labels: {{
+          color: '#86868b',
+          font: {{ size: 12 }},
+          usePointStyle: true,
+          pointStyleWidth: 10,
+          filter: function(item) {{
+            return !item.text.includes('Riesgo');
+          }}
+        }}
       }},
       tooltip: {{
         callbacks: {{
@@ -1024,20 +1038,24 @@ new Chart(ctxScatter, {{
           }},
           label: function(context) {{
             const point = context.raw;
-            return [
+            const lines = [
               point.type,
               point.summary,
               'Asignado: ' + point.assignee,
               'Antigüedad: ' + Math.round(point.y) + ' días (desde Abierto)'
             ];
+            if (point.carried_over) {{
+              lines.push('⚠️ Arrastrado de sprint anterior');
+            }}
+            return lines;
           }}
         }}
       }}
     }},
-    scales: {{
       x: {{
-        display: false,
+    scales: {{
         min: -3,
+        display: false,
         max: 3
       }},
       y: {{
