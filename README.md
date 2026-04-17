@@ -169,6 +169,40 @@ El archivo `sprint-report.html` se creará en la misma carpeta. Ábrelo con tu n
 | `--sprint-start` | ✅ | YYYY-MM-DD | - | Fecha de inicio del sprint |
 | `--sprint-end` | ✅ | YYYY-MM-DD | - | Fecha de fin del sprint |
 | `--output` | ❌ | Filename | `sprint-report.html` | Nombre del archivo de salida |
+| `--config`, `-c` | ❌ | Path | `scripts/generate_report_input.json` | Ruta a JSON de configuración con los parámetros de entrada |
+
+#### Configuración con JSON
+
+El script puede cargar valores desde el archivo JSON `scripts/generate_report_input.json` cuando no se proporcionan todos los parámetros por línea de comandos.
+
+Ejemplo de `scripts/generate_report_input.json`:
+
+```json
+{
+  "csv_path": "UserStories.csv",
+  "sprint_start": "2026-04-01",
+  "sprint_end": "2026-04-14",
+  "output": "sprint-report.html"
+}
+```
+
+Uso con archivo de configuración por defecto:
+
+```bash
+python scripts/generate_report.py
+```
+
+Uso con archivo de configuración personalizado:
+
+```bash
+python scripts/generate_report.py --config ./scripts/generate_report_input.json
+```
+
+Uso mixto (override de valores desde línea de comandos):
+
+```bash
+python scripts/generate_report.py --config ./scripts/generate_report_input.json --sprint-start 2026-04-07 --sprint-end 2026-04-17
+```
 
 #### Módulos desarrollador (alternativa por pasos)
 
