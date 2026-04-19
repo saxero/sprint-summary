@@ -764,16 +764,7 @@ footer {{
     <div class="chart-container">
       <canvas id="chart-scatter" width="800" height="400"></canvas>
     </div>
-    <div class="legend">
-      <div class="legend-item">
-        <span class="legend-dot" style="background:#0071e3"></span>
-        <span>Abiertos</span>
-      </div>
-      <div class="legend-item">
-        <span class="legend-dot" style="background:#ff9500"></span>
-        <span>Not Started</span>
-      </div>
-    </div>
+    
     <div class="risk-zones">
       <div class="risk-item" style="color:#ff9500">
         <span class="risk-line"></span>
@@ -1052,11 +1043,11 @@ new Chart(ctxScatter, {{
         }}
       }}
     }},
-      x: {{
+
+    // 👇 AQUÍ VA scales correctamente
     scales: {{
-        min: -3,
-        display: false,
-        max: 3
+      x: {{
+        display: false   // 👈 esto oculta todo el eje X
       }},
       y: {{
         title: {{
@@ -1065,7 +1056,7 @@ new Chart(ctxScatter, {{
           font: {{ size: 12 }},
           color: '#86868b'
         }},
-        min: -1,
+        min: 0,
         max: {max_age} + 5,
         grid: {{ color: 'rgba(0,0,0,0.04)' }},
         ticks: {{
