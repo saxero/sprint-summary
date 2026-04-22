@@ -125,12 +125,12 @@ python3 scripts/generate_report.py --help
 
 **En Windows:**
 ```bash
-python scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17
+cd /path/to/project && python scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17
 ```
 
 **En Mac/Linux:**
 ```bash
-python3 scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17
+cd /path/to/project && python3 scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17
 ```
 
 #### Paso 3: Abrir el reporte
@@ -189,19 +189,19 @@ Ejemplo de `scripts/generate_report_input.json`:
 Uso con archivo de configuración por defecto:
 
 ```bash
-python scripts/generate_report.py
+cd /path/to/project && python scripts/generate_report.py
 ```
 
 Uso con archivo de configuración personalizado:
 
 ```bash
-python scripts/generate_report.py --config ./scripts/generate_report_input.json
+cd /path/to/project && python scripts/generate_report.py --config ./scripts/generate_report_input.json
 ```
 
 Uso mixto (override de valores desde línea de comandos):
 
 ```bash
-python scripts/generate_report.py --config ./scripts/generate_report_input.json --sprint-start 2026-04-07 --sprint-end 2026-04-17
+cd /path/to/project && python scripts/generate_report.py --config ./scripts/generate_report_input.json --sprint-start 2026-04-07 --sprint-end 2026-04-17
 ```
 
 #### Uso avanzado y pruebas
@@ -212,7 +212,7 @@ python scripts/generate_report.py --config ./scripts/generate_report_input.json 
 Ejemplo de ejecución:
 
 ```bash
-python3 scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17 --output my-report.html
+cd /path/to/project && python3 scripts/generate_report.py UserStories.csv --sprint-start 2026-04-07 --sprint-end 2026-04-17 --output my-report.html
 ```
 
 #### Comandos rápidos para desarrollo y pruebas
@@ -337,11 +337,8 @@ El reporte usa Chart.js vía CDN (jsdelivr). La primera carga puede tardar ~1s, 
 **Solución:**
 ```bash
 # Usa la ruta completa
-python3 scripts/generate_report.py /ruta/completa/a/UserStories.csv ...
+cd /path/to/project && python3 scripts/generate_report.py /ruta/completa/a/UserStories.csv ...
 
-# O navega a la carpeta del CSV
-cd /ruta/al/csv
-python3 /ruta/al/script/generate_report.py UserStories.csv ...
 ```
 
 </details>
@@ -368,7 +365,7 @@ pip install pandas
 # Formato correcto: 2026-04-07
 # Formato incorrecto: 07/04/2026, 7-Apr-2026, etc.
 
-python3 scripts/generate_report.py UserStories.csv \
+cd /path/to/project && python3 scripts/generate_report.py UserStories.csv \
   --sprint-start 2026-04-07 \
   --sprint-end 2026-04-17
 ```
@@ -430,10 +427,10 @@ df = df.copy()  # Desfragmenta el DataFrame
 
 ```bash
 # Ejecutar análisis de código
-python -m py_compile scripts/generate_report.py
+cd /path/to/project && python -m py_compile scripts/generate_report.py
 
 # Verificar con datos de prueba
-python scripts/generate_report.py test_data/sample.csv \
+cd /path/to/project && python scripts/generate_report.py test_data/sample.csv \
   --sprint-start 2026-01-01 \
   --sprint-end 2026-01-14
 ```
@@ -466,3 +463,5 @@ MIT License - Libre para uso personal y comercial.
   <b>¿Necesitas ayuda?</b> Abre un issue en el repositorio.<br>
   <b>¿Te gusta?</b> Dale ⭐ al repo!
 </p>
+
+

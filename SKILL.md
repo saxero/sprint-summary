@@ -20,7 +20,7 @@ Creates a professional HTML report from a Jira CSV export with two main visualiz
 ## Usage
 
 ```bash
-python3 scripts/generate_report.py <csv_file> \
+cd /path/to/project && python3 scripts/generate_report.py <csv_file> \
   --sprint-start YYYY-MM-DD \
   --sprint-end YYYY-MM-DD \
   --output report.html
@@ -36,7 +36,7 @@ python3 scripts/generate_report.py <csv_file> \
 ## Example
 
 ```bash
-python3 scripts/generate_report.py UserStories.csv \
+cd /path/to/project && python3 scripts/generate_report.py UserStories.csv \
   --sprint-start 2026-04-07 \
   --sprint-end 2026-04-17 \
   --output my-sprint-report.html
